@@ -1,4 +1,5 @@
 import * as pdfjsLib from './vendor/pdf.min.mjs';
+import { getProfile } from './profiles.js';
 pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
 
 const $ = (s) => document.querySelector(s);
@@ -7,10 +8,7 @@ const round = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normalize = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u00a0/g,' ').replace(/[^a-zA-Z0-9]+/g,' ').trim().toLowerCase();
 
-const profile = {
-  id:'pdfk', name:'PDFK', uberVat:.10, expenseVat:.20,
-  accounts:{uberSales:['701130000','VENTES 10% UBEREATS'],vat10:['445710080','TVA collectée à 10%'],commission:['622200000','COMMISSIONS UBEREATS'],deductibleVat:['445660000','TVA sur autres biens et services'],marketing:['623204000','DEPENSES MARKETING UBEREATS'],mealVoucher:['580004000','VERSEMENT TR'],uberSettlement:['580009000','UBEREAT'],liquid:['701110000','VENTES 10% LIQUIDE'],solid:['701120000','VENTES 10% SOLIDE'],alcohol:['701200000','VENTES 20% ALCOOL'],vat20:['445710090','TVA collectée à 20%'],cash:['531000000','CAISSE']}
-};
+let profile = getProfile('pdfk');
 let state={files:{uber:null,cash:null}, rows:[], allShown:false, valid:false};
 
 function bindFile(inputSel,zoneSel,key){
@@ -29,6 +27,7 @@ function setFile(file,zone,key){
 }
 function formatBytes(n){return n>1048576?`${(n/1048576).toFixed(1)} Mo`:`${Math.ceil(n/1024)} Ko`}
 bindFile('#uber-file','#uber-zone','uber'); bindFile('#cash-file','#cash-zone','cash');
+$('#company').addEventListener('change',e=>{profile=getProfile(e.target.value)});
 
 async function parseUber(file){
   const ext=file.name.split('.').pop().toLowerCase();
@@ -40,29 +39,34 @@ async function parseUber(file){
   if(headerIndex<0) throw new Error("Colonnes Uber non reconnues. Vérifiez qu'il s'agit de l'export détaillé Uber Eats.");
   const headers=records[headerIndex].map(normalize), rawData=records.slice(headerIndex+1).filter(r=>r.some(v=>v!==''&&v!=null));
   const col=(aliases)=>{for(const a of aliases){const i=headers.findIndex(h=>h===normalize(a)||h.includes(normalize(a)));if(i>=0)return i}return -1};
-  const ix={currency:col(['Code de devise']),sales:col(['Ventes (TVA incluse)','Total des ventes d articles TVA incluse']),refund:col(['Montant de la facturation rétroactive (TVA incluse)','Montant de la facturation retroactive TVA incluse']),promo:col(['Offres sur les articles (TVA incluse)','Promotions du commerçant appliquées aux plats articles TVA incluse']),offerFee:col(["Frais d'utilisation de l'offre"]),offerVat:col(["TVA sur les frais d'utilisation de l'offre"]),voucher:col(['Titre-restaurant']),commission:col(['Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)','Frais de service Uber facturés au commerçant après application de la réduction']),commissionVat:col(['TVA sur les frais de service de la Marketplace / frais de mise en relation après offre','TVA sur les frais de service Uber']),other:col(['Autres paiements (TVA incluse)']),total:col(['Montant total']),payout:col(['Date du versement'])};
+  const ix={currency:col(['Code de devise']),establishment:col(["Identifiant de l’établissement externe","Identifiant de l'etablissement externe"]),orderDate:col(['Date de la commande']),orderId:col(['Id. de la commande','Id de la commande']),sales:col(['Ventes (TVA incluse)','Total des ventes d articles TVA incluse']),refund:col(['Montant de la facturation rétroactive (TVA incluse)','Montant de la facturation retroactive TVA incluse']),promo:col(['Offres sur les articles (TVA incluse)','Promotions du commerçant appliquées aux plats articles TVA incluse']),offerFee:col(["Frais d'utilisation de l'offre"]),offerVat:col(["TVA sur les frais d'utilisation de l'offre"]),voucher:col(['Titre-restaurant']),commission:col(['Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)','Frais de service Uber facturés au commerçant après application de la réduction']),commissionVat:col(['TVA sur les frais de service de la Marketplace / frais de mise en relation après offre','TVA sur les frais de service Uber']),other:col(['Autres paiements (TVA incluse)']),total:col(['Montant total']),payout:col(['Date du versement'])};
   const missing=Object.entries(ix).filter(([k,v])=>v<0&&!['offerFee','offerVat'].includes(k)).map(([k])=>k);
   if(missing.length) throw new Error(`Export Uber incomplet : ${missing.length} colonne(s) indispensable(s) absente(s).`);
   const data=rawData.filter(r=>normalize(r[ix.currency])==='eur');
   if(!data.length) throw new Error("Aucune ligne de transaction en EUR n'a été trouvée dans l'export Uber.");
   const sum=k=>round(data.reduce((a,r)=>a+amount(r[ix[k]]),0));
   const payouts=new Map(); data.forEach(r=>{const v=amount(r[ix.total]);const d=dateValue(r[ix.payout]);const key=d||'À venir';payouts.set(key,round((payouts.get(key)||0)+v))});
-  return {sales:sum('sales'),refund:sum('refund'),promo:sum('promo'),offerFee:sum('offerFee'),offerVat:sum('offerVat'),voucher:sum('voucher'),commission:sum('commission'),commissionVat:sum('commissionVat'),other:sum('other'),total:sum('total'),payouts:[...payouts].filter(([,v])=>Math.abs(v)>.004)};
+  const establishments=[...new Set(data.map(r=>String(r[ix.establishment]||'').trim()).filter(Boolean))];
+  const periods=[...new Set(data.map(r=>monthValue(r[ix.orderDate])).filter(Boolean))];
+  return {sales:sum('sales'),refund:sum('refund'),promo:sum('promo'),offerFee:sum('offerFee'),offerVat:sum('offerVat'),voucher:sum('voucher'),commission:sum('commission'),commissionVat:sum('commissionVat'),other:sum('other'),total:sum('total'),payouts:[...payouts].filter(([,v])=>Math.abs(v)>.004),establishments,periods,rowCount:data.length};
 }
 function amount(v){
   if(v==null||v==='')return 0;
+  if(v&&typeof v==='object'&&'excel' in v){const d=excelDate(v.excel),m=d.getUTCMonth()+1,decimals=m>=10?2:v.decimals;return d.getUTCDate()+m/(10**decimals)}
   if(v instanceof Date){const m=v.getUTCMonth()+1;return v.getUTCDate()+(m<10?m/10:m/100)}
   if(typeof v==='number'){if(v>30000){const d=excelDate(v);const m=d.getUTCMonth()+1;return d.getUTCDate()+(m<10?m/10:m/100)}return v}
   const s=String(v).replace(/\s/g,'').replace(',','.').replace(/[^0-9.\-]/g,''); return Number(s)||0;
 }
 function dateValue(v){
   if(v==null||v==='')return '';
+  if(v&&typeof v==='object'&&'excel' in v)return frDate(excelDate(v.excel));
   if(v instanceof Date)return frDate(v);
   if(typeof v==='number'&&v>30000)return frDate(excelDate(v));
   const s=String(v); const m=s.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);return m?`${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3].length===2?'20'+m[3]:m[3]}`:'';
 }
 function excelDate(v){return new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000)}
 function frDate(d){return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`}
+function monthValue(v){const d=dateValue(v),m=d.match(/\d{2}\/(\d{2})\/(\d{4})/);return m?`${m[2]}-${m[1]}`:''}
 
 function parseDelimited(text){
   const sep=(text.split('\n')[0].match(/;/g)||[]).length>(text.split('\n')[0].match(/,/g)||[]).length?';':','; const rows=[];let row=[],cell='',q=false;
@@ -72,8 +76,9 @@ async function parseXlsx(file){
   const zip=await JSZip.loadAsync(await file.arrayBuffer());
   const xml=async p=>new DOMParser().parseFromString(await zip.file(p).async('text'),'application/xml');
   const shared=[];if(zip.file('xl/sharedStrings.xml')){const d=await xml('xl/sharedStrings.xml');d.querySelectorAll('si').forEach(si=>shared.push([...si.querySelectorAll('t')].map(x=>x.textContent).join('')))}
+  const styleFormats=[];if(zip.file('xl/styles.xml')){const sd=await xml('xl/styles.xml'),custom={};sd.querySelectorAll('numFmt').forEach(n=>custom[n.getAttribute('numFmtId')]=n.getAttribute('formatCode'));sd.querySelectorAll('cellXfs > xf').forEach(x=>styleFormats.push(custom[x.getAttribute('numFmtId')]||''))}
   const wb=await xml('xl/workbook.xml'),rels=await xml('xl/_rels/workbook.xml.rels');const rid=wb.querySelector('sheet').getAttribute('r:id');const rel=[...rels.querySelectorAll('Relationship')].find(x=>x.getAttribute('Id')===rid);let target=rel.getAttribute('Target').replace(/^\//,'');if(!target.startsWith('xl/'))target='xl/'+target.replace(/^\.\//,'');const sheet=await xml(target);
-  const rows=[]; sheet.querySelectorAll('row').forEach(rx=>{const row=[];rx.querySelectorAll('c').forEach(c=>{const ref=c.getAttribute('r'),col=lettersToIndex(ref.match(/[A-Z]+/)[0]),t=c.getAttribute('t'),raw=c.querySelector('v')?.textContent??'',inline=c.querySelector('is t')?.textContent??'';let val=t==='s'?shared[+raw]:(t==='inlineStr'?inline:(t==='str'?raw:(raw===''?'':Number(raw))));row[col]=val});rows.push(row)});return rows;
+  const rows=[]; sheet.querySelectorAll('row').forEach(rx=>{const row=[];rx.querySelectorAll('c').forEach(c=>{const ref=c.getAttribute('r'),col=lettersToIndex(ref.match(/[A-Z]+/)[0]),t=c.getAttribute('t'),raw=c.querySelector('v')?.textContent??'',inline=c.querySelector('is t')?.textContent??'',fmt=styleFormats[+(c.getAttribute('s')||0)]||'';let val=t==='s'?shared[+raw]:(t==='inlineStr'?inline:(t==='str'?raw:(raw===''?'':Number(raw))));if(typeof val==='number'&&/^d{1,2}\.m{1,2}$/i.test(fmt))val={excel:val,decimals:fmt.toLowerCase()==='d.m'?1:2};row[col]=val});rows.push(row)});return rows;
 }
 function lettersToIndex(s){let n=0;for(const c of s)n=n*26+c.charCodeAt(0)-64;return n-1}
 
@@ -90,7 +95,8 @@ function parseCashText(text){
     for(const p of patterns){const m=clean.match(p);if(m){const nums=m.slice(1,4).map(amount);const ht=patterns.indexOf(p)===0?nums[0]:nums[0],ttc=patterns.indexOf(p)===0?nums[1]:nums[1],vat=nums[2];return {ht,ttc,vat}}}return null};
   const liquid=find('Liquide','10[,\\.]0%'),solid=find('Solide','10[,\\.]0%'),alcohol=find('Alcool','20[,\\.]0%');
   if(!liquid||!solid||!alcohol) throw new Error("Les lignes Liquide 10 %, Solide 10 % et Alcool 20 % n'ont pas toutes été trouvées dans le rapport de caisse.");
-  return {liquid,solid,alcohol,total:round(liquid.ttc+solid.ttc+alcohol.ttc)};
+  const pm=clean.match(/Du\s+\d{1,2}[\/.](\d{1,2})[\/.](\d{2,4})\s+au/i);const period=pm?`${pm[2].length===2?'20'+pm[2]:pm[2]}-${pm[1].padStart(2,'0')}`:'';
+  return {liquid,solid,alcohol,total:round(liquid.ttc+solid.ttc+alcohol.ttc),period};
 }
 
 function periodInfo(){const [y,m]=$('#period').value.split('-').map(Number);return {y,m,last:new Date(Date.UTC(y,m,0)),label:`${String(m).padStart(2,'0')}.${y}`}}
@@ -109,6 +115,10 @@ $('#process').addEventListener('click',async()=>{
     if(!$('#period').value)throw new Error('Sélectionnez une période.');if(state.files.uber.size>25e6||state.files.cash.size>25e6)throw new Error('Un fichier dépasse la limite de 25 Mo.');
     const [uber,cash]=await Promise.all([parseUber(state.files.uber),parseCash(state.files.cash)]);const built=buildRows(uber,cash);state.rows=built.rows;
     const debit=round(state.rows.reduce((s,r)=>s+(r.debit||0),0)),credit=round(state.rows.reduce((s,r)=>s+(r.credit||0),0)),diff=round(debit-credit);
+    const selected=$('#period').value;
+    if(uber.periods.length!==1||uber.periods[0]!==selected)errors.push(`La période Uber détectée (${uber.periods.join(', ')||'inconnue'}) ne correspond pas à ${selected}.`);
+    if(cash.period&&cash.period!==selected)errors.push(`La période du rapport de caisse (${cash.period}) ne correspond pas à ${selected}.`);
+    const unknown=uber.establishments.filter(x=>!profile.uberEstablishments.includes(x));if(unknown.length)errors.push(`Établissement Uber non reconnu pour PDFK : ${unknown.join(', ')}.`);
     if(Math.abs(diff)>.01)errors.push(`Écriture déséquilibrée de ${money.format(Math.abs(diff))}.`);
     if(Math.abs(round(uber.total-(uber.payouts.reduce((s,[,v])=>s+v,0)))>.01)errors.push('Le total Uber ne correspond pas à la somme des versements.');
     if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');
@@ -119,8 +129,8 @@ $('#process').addEventListener('click',async()=>{
 });
 function renderResults(uber,cash,built,debit,credit,errors){
   $('#results').hidden=false;$('#result-period').textContent=`PDFK · ${periodInfo().label}`;$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`;$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
-  const checks=[['Structure Uber reconnue',`${uber.payouts.length} versements détectés`],['Ventilation caisse reconnue','Liquide 10 % · Solide 10 % · Alcool 20 %'],['TVA recalculée',`Uber 10 % · Frais 20 %`],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]];
-  $('#check-list').innerHTML=checks.map(x=>`<div class="check-row"><b>✓</b><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');$('#check-badge').textContent=errors.length?'À corriger':'4 contrôles validés';state.valid=!errors.length;renderRows();renderErrors(errors);$('#download').disabled=!state.valid;$('#download-status').textContent=state.valid?'Fichier validé et prêt':'Génération bloquée';$('#download-help').textContent=state.valid?`${state.rows.length} lignes comptables · format Excel Pennylane`:'Corrigez les erreurs signalées puis relancez le traitement.';$('#results').scrollIntoView({behavior:'smooth',block:'start'});
+  const checks=[['Structure Uber reconnue',`${uber.rowCount} lignes · ${uber.payouts.length} versements`],['Société et période cohérentes',`${uber.establishments.join(', ')} · ${periodInfo().label}`],['Ventilation caisse reconnue','Liquide 10 % · Solide 10 % · Alcool 20 %'],['TVA recalculée',`Uber 10 % · Frais 20 %`],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]];
+  $('#check-list').innerHTML=checks.map(x=>`<div class="check-row"><b>✓</b><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');$('#check-badge').textContent=errors.length?'À corriger':`${checks.length} contrôles validés`;state.valid=!errors.length;renderRows();renderErrors(errors);$('#download').disabled=!state.valid;$('#download-status').textContent=state.valid?'Fichier validé et prêt':'Génération bloquée';$('#download-help').textContent=state.valid?`${state.rows.length} lignes comptables · format Excel Pennylane`:'Corrigez les erreurs signalées puis relancez le traitement.';$('#results').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function renderRows(){const shown=state.allShown?state.rows:state.rows.slice(0,8);$('#rows').innerHTML=shown.map(r=>`<tr><td>${r.date}</td><td>${r.journal||'—'}</td><td>${r.account}</td><td>${esc(r.label)}</td><td class="num">${r.debit!=null?money.format(r.debit):'—'}</td><td class="num">${r.credit!=null?money.format(r.credit):'—'}</td></tr>`).join('');$('#toggle-rows').textContent=state.allShown?'Réduire':`Afficher les ${state.rows.length} lignes`}
 $('#toggle-rows').addEventListener('click',()=>{state.allShown=!state.allShown;renderRows()});
@@ -129,10 +139,11 @@ function renderErrors(errors){const box=$('#error-log');box.hidden=!errors.lengt
 $('#download').addEventListener('click',async()=>{if(!state.valid)return;const blob=await makeXlsx(state.rows);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`PDFK_CA_UBER_${$('#period').value.replace('-','_')}_Pennylane.xlsx`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
 async function makeXlsx(rows){
   const headers=['Date','Code Journal','Numéro de compte','Libellé de compte','Libellé de ligne','Taux de TVA du compte','Code pays du compte','Débit et/ou Crédit','Crédit'];const data=[headers,...rows.map(r=>[r.date,r.journal,r.account,r.accountLabel,r.label,r.vat??'', '',r.debit??'',r.credit??''])];
-  const cell=(v,ref,row)=>{if(typeof v==='number')return `<c r="${ref}" s="${row?2:0}"><v>${v}</v></c>`;return `<c r="${ref}" t="inlineStr" s="${row?1:3}"><is><t>${xmlEsc(v)}</t></is></c>`};
-  const sheet=data.map((r,ri)=>`<row r="${ri+1}">${r.map((v,ci)=>cell(v,colName(ci)+(ri+1),ri>0)).join('')}</row>`).join('');const zip=new JSZip();
+  const cell=(v,ref,row,col)=>{if(row&&col===0)return `<c r="${ref}" s="4"><v>${excelSerialFromFr(v)}</v></c>`;if(typeof v==='number')return `<c r="${ref}" s="${row?2:0}"><v>${v}</v></c>`;return `<c r="${ref}" t="inlineStr" s="${row?1:3}"><is><t>${xmlEsc(v)}</t></is></c>`};
+  const sheet=data.map((r,ri)=>`<row r="${ri+1}">${r.map((v,ci)=>cell(v,colName(ci)+(ri+1),ri>0,ci)).join('')}</row>`).join('');const zip=new JSZip();
   zip.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>');zip.folder('_rels').file('.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
   zip.folder('xl').file('workbook.xml','<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Import Pennylane" sheetId="1" r:id="rId1"/></sheets></workbook>').folder('_rels').file('workbook.xml.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
-  zip.folder('xl').file('styles.xml','<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F7254"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0"/></cellXfs></styleSheet>');zip.folder('xl').folder('worksheets').file('sheet1.xml',`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="13" customWidth="1"/><col min="2" max="3" width="18" customWidth="1"/><col min="4" max="5" width="32" customWidth="1"/><col min="6" max="9" width="19" customWidth="1"/></cols><sheetData>${sheet}</sheetData><autoFilter ref="A1:I${data.length}"/></worksheet>`);return zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  zip.folder('xl').file('styles.xml','<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F7254"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0"/><xf numFmtId="14" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/></cellXfs></styleSheet>');zip.folder('xl').folder('worksheets').file('sheet1.xml',`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="13" customWidth="1"/><col min="2" max="3" width="18" customWidth="1"/><col min="4" max="5" width="32" customWidth="1"/><col min="6" max="9" width="19" customWidth="1"/></cols><sheetData>${sheet}</sheetData><autoFilter ref="A1:I${data.length}"/></worksheet>`);return zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
+function excelSerialFromFr(v){const [d,m,y]=String(v).split('/').map(Number);return Math.round((Date.UTC(y,m-1,d)-Date.UTC(1899,11,30))/86400000)}
 function colName(i){let s='';for(i++;i;i=Math.floor((i-1)/26))s=String.fromCharCode(65+(i-1)%26)+s;return s}function xmlEsc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]))}
