@@ -6,6 +6,7 @@
   <meta name="description" content="Préparation contrôlée des imports de chiffre d'affaires Pennylane pour BMG." />
   <title>BMG — Préparation Pennylane</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="clarity.css" />
 </head>
 <body>
   <header class="topbar">
@@ -27,12 +28,12 @@
         <label class="field"><span>Période</span><input id="period" type="month" value="2026-08" /><small>Date d'écriture : dernier jour du mois</small></label>
       </div>
       <div class="drop-grid">
-        <label class="dropzone" id="uber-zone"><input id="uber-file" type="file" accept=".xlsx,.csv" /><span class="file-icon">X</span><strong>Export brut Uber</strong><em>Glissez le fichier ici ou cliquez pour choisir</em><small>Excel ou CSV · 25 Mo maximum</small><div class="chosen" hidden></div></label>
-        <label class="dropzone" id="cash-zone"><input id="cash-file" type="file" accept=".pdf,.xlsx,.csv" /><span class="file-icon pdf">P</span><strong>Rapport de caisse</strong><em>Glissez le PDF ou l'export caisse ici</em><small>PDF, Excel ou CSV · 25 Mo maximum</small><div class="chosen" hidden></div></label>
+        <label class="dropzone" id="uber-zone"><input id="uber-file" type="file" accept=".xlsx,.csv" /><span class="zone-step">IMPORT 1</span><span class="file-icon">X</span><strong>Import Uber</strong><em>Déposez l'export Uber ici</em><small>Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
+        <label class="dropzone" id="cash-zone"><input id="cash-file" type="file" accept=".pdf,.xlsx,.csv" /><span class="zone-step">IMPORT 2</span><span class="file-icon pdf">P</span><strong>Import caisse</strong><em>Déposez le rapport de caisse ici</em><small>PDF, Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
       </div>
       <div id="preflight" class="preflight">
-        <div><span class="status-dot"></span><strong>Prêt à recevoir les fichiers</strong><small>Les documents restent dans votre navigateur.</small></div>
-        <button id="process" disabled><span>Traiter les fichiers</span><b>→</b></button>
+        <div><span class="status-dot"></span><strong>Deux imports obligatoires pour PDFK</strong><small>Ajoutez l'import Uber et l'import caisse avant de créer l'écriture comptable.</small></div>
+        <button id="process" disabled><span>Créer l'écriture comptable</span><b>→</b></button>
       </div>
     </section>
 

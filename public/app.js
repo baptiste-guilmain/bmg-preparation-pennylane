@@ -20,10 +20,19 @@ function bindFile(inputSel,zoneSel,key){
 }
 function setFile(file,zone,key){
   if(!file)return; const box=zone.querySelector('.chosen'); state.files[key]=file; zone.classList.add('has-file'); box.hidden=false;
-  box.innerHTML=`<span class="file-icon ${key==='cash'?'pdf':''}">${key==='cash'?'P':'X'}</span><strong>${esc(file.name)}</strong><span>✓ ${formatBytes(file.size)} · cliquer pour remplacer</span>`;
-  const ready=state.files.uber&&state.files.cash; $('#process').disabled=!ready; $('.status-dot').classList.toggle('ready',!!ready);
-  $('#preflight strong').textContent=ready?'Deux fichiers prêts':'Prêt à recevoir les fichiers';
-  $('#preflight small').textContent=ready?'Vous pouvez lancer le traitement.':'Les documents restent dans votre navigateur.';
+  const label=key==='uber'?'Import Uber':'Import caisse';
+  box.innerHTML=`<span class="file-icon ${key==='cash'?'pdf':''}">${key==='cash'?'P':'X'}</span><strong>${esc(file.name)}</strong><span>✓ ${label} reçu · ${formatBytes(file.size)} · cliquer pour remplacer</span>`;
+  updatePreflight();
+}
+function updatePreflight(){
+  const uberReady=Boolean(state.files.uber),cashReady=Boolean(state.files.cash),ready=uberReady&&cashReady;
+  $('#process').disabled=!ready; $('.status-dot').classList.toggle('ready',ready);
+  let title='Deux imports obligatoires pour PDFK';
+  let help="Ajoutez l'import Uber et l'import caisse avant de créer l'écriture comptable.";
+  if(uberReady&&!cashReady){title='Import Uber reçu';help="Ajoutez maintenant l'import caisse pour créer l'écriture comptable."}
+  if(!uberReady&&cashReady){title='Import caisse reçu';help="Ajoutez maintenant l'import Uber pour créer l'écriture comptable."}
+  if(ready){title='Les deux imports sont prêts';help="Vous pouvez créer l'écriture comptable."}
+  $('#preflight strong').textContent=title; $('#preflight small').textContent=help;
 }
 function formatBytes(n){return n>1048576?`${(n/1048576).toFixed(1)} Mo`:`${Math.ceil(n/1024)} Ko`}
 bindFile('#uber-file','#uber-zone','uber'); bindFile('#cash-file','#cash-zone','cash');
@@ -115,7 +124,7 @@ function buildRows(uber,cash){
 }
 
 $('#process').addEventListener('click',async()=>{
-  const btn=$('#process');btn.disabled=true;btn.querySelector('span').textContent='Traitement en cours…';const errors=[];
+  const btn=$('#process');btn.disabled=true;btn.querySelector('span').textContent="Création de l'écriture…";const errors=[];
   try{
     if(!$('#period').value)throw new Error('Sélectionnez une période.');if(state.files.uber.size>25e6||state.files.cash.size>25e6)throw new Error('Un fichier dépasse la limite de 25 Mo.');
     const [uber,cash]=await Promise.all([parseUber(state.files.uber),parseCash(state.files.cash)]);const built=buildRows(uber,cash);state.rows=built.rows;
@@ -131,7 +140,7 @@ $('#process').addEventListener('click',async()=>{
     if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');
     if(cash.declaredTotal!=null&&Math.abs(round(cash.total-cash.declaredTotal))>.02)errors.push(`Le total des trois lignes caisse (${money.format(cash.total)}) ne correspond pas au total TTC du PDF (${money.format(cash.declaredTotal)}).`);
     renderResults(uber,cash,built,debit,credit,errors);
-  }catch(e){errors.push(e.message||'Erreur inconnue.');renderErrors(errors)}finally{btn.disabled=false;btn.querySelector('span').textContent='Traiter les fichiers'}
+  }catch(e){errors.push(e.message||'Erreur inconnue.');renderErrors(errors)}finally{btn.querySelector('span').textContent="Créer l'écriture comptable";btn.disabled=!(state.files.uber&&state.files.cash)}
 });
 function renderResults(uber,cash,built,debit,credit,errors){
   $('#results').hidden=false;$('#result-period').textContent=`PDFK · ${periodInfo().label}`;$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`;$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
