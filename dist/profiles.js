@@ -100,17 +100,14 @@ export const profiles = {
       mealVoucher: ['58000400', 'VERSEMENT TR'],
       uberSettlement: ['58000600', 'UBEREAT']
     }
-  })
-};
-
-// Sociétés O'Tacos restantes : moteur identique à HAGTACOS/COLMIOS. Comptes
-// retrouvés le 4 sept. 2026 via l'API Pennylane de chaque dossier, sur l'écriture
-// RÉELLEMENT posée en juillet 2026 (GET /ledger_entry_lines puis /ledger_entries) —
-// pas une supposition ni une copie d'HAGTACOS. Il manque encore à chacune son
-// identifiant Uber (établissementId), qui ne peut venir que d'un vrai export Uber
-// de la société. Volontairement absentes de public/index.html tant que ce dernier
-// point n'est pas réglé et qu'un mois n'a pas été comparé de bout en bout.
-export const otacosDraftProfiles = {
+  }),
+  // Les 8 sociétés ci-dessous ont leurs comptes confirmés le 4 sept. 2026 via
+  // l'API Pennylane de chaque dossier, sur l'écriture RÉELLEMENT posée en
+  // juillet 2026 (GET /ledger_entry_lines puis /ledger_entries) — pas une
+  // supposition ni une copie d'HAGTACOS. Activées sans identifiant Uber
+  // (établissementId vide) à la demande de Baptiste le 4 sept. 2026 : l'outil
+  // ne pourra donc pas vérifier que le fichier déposé correspond bien à la
+  // société sélectionnée pour celles-ci — à surveiller à l'usage.
   fartacos: otacosProfile({ id: 'fartacos', name: 'FARTACOS', label: "O'Tacos Strasbourg", establishmentId: '', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
@@ -147,11 +144,8 @@ export const otacosDraftProfiles = {
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
   } }),
-  // ARIOS : pas d'écriture Uber Eats de juillet 2026 retrouvée dans son plan comptable
-  // (la dernière date de janvier 2026, mélangée avec Deliveroo, structure différente :
-  // compte "401OTACOS" en versement, "623201" en marketing). Comptes ci-dessous = ceux
-  // des autres sociétés, à considérer comme une simple hypothèse de départ pour ARIOS,
-  // plus incertaine que pour ses 7 sœurs — à vérifier en priorité avant toute activation.
+  // ARIOS : écriture Uber Eats de juillet 2026 confirmée (comme les 7 autres), avec
+  // une différence réelle sur le compte de versement : 580009 et non 580006.
   arios: otacosProfile({ id: 'arios', name: 'ARIOS', label: "O'Tacos", establishmentId: '', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
