@@ -2,3 +2,5 @@ work/
 outputs/
 *.tar.gz
 .DS_Store
+*.zip
+copilot-worktrees/
