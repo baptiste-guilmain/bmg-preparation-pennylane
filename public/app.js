@@ -120,7 +120,7 @@ $('#process').addEventListener('click',async()=>{
     if(cash.period&&cash.period!==selected)errors.push(`La période du rapport de caisse (${cash.period}) ne correspond pas à ${selected}.`);
     const unknown=uber.establishments.filter(x=>!profile.uberEstablishments.includes(x));if(unknown.length)errors.push(`Établissement Uber non reconnu pour PDFK : ${unknown.join(', ')}.`);
     if(Math.abs(diff)>.01)errors.push(`Écriture déséquilibrée de ${money.format(Math.abs(diff))}.`);
-    if(Math.abs(round(uber.total-(uber.payouts.reduce((s,[,v])=>s+v,0)))>.01)errors.push('Le total Uber ne correspond pas à la somme des versements.');
+    if(Math.abs(round(uber.total-(uber.payouts.reduce((s,[,v])=>s+v,0))))>.01)errors.push('Le total Uber ne correspond pas à la somme des versements.');
     if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');
     if(Math.abs(round((cash.solid.ht+cash.solid.vat)-cash.solid.ttc))>.02)errors.push('La ligne caisse Solide ne se recalcule pas.');
     if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');
