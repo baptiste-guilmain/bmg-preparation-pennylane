@@ -24,16 +24,58 @@ sociétés O'Tacos, validé cellule par cellule sur le modèle mensuel HAGTACOS 
   ignorée automatiquement si le fichier ne la contient pas.
 
 Chaque société n'a que ses **comptes** et son **identifiant Uber** à définir via
-`otacosProfile()` dans `public/profiles.js` (voir HAGTACOS et COLMIOS) — les comptes
-diffèrent réellement d'une société à l'autre, il faut les reprendre du modèle signé par
-l'expert-comptable, jamais les supposer identiques.
+`otacosProfile()` dans `public/profiles.js` — les comptes diffèrent réellement d'une
+société à l'autre (confirmé : 4 comptes sur 7 différaient déjà entre HAGTACOS et
+COLMIOS), il ne faut jamais les supposer identiques sans vérification.
 
-**État (3 septembre 2026)** :
-- HAGTACOS et COLMIOS : profils actifs, formule vérifiée sur le modèle de juillet 2026.
-  HAGTACOS reproduit le modèle à la vingtaine de centimes près sur toutes les lignes ;
-  COLMIOS s'équilibre mais ses totaux de juillet (5,5 % notamment) n'ont pas pu être
-  retrouvés à l'identique depuis l'export brut — à confirmer avec l'expert-comptable sur
-  un mois (probablement août 2026).
-- FARTACOS, EPIOS, GEIPIOS, SARIOS, HAUTIOS, MULIOS, ARIOS, VINIOS (voir `otacosPending`
-  dans `profiles.js`) : structure prête, **non activées** dans `index.html` tant que leur
-  modèle mensuel signé n'a pas donné leurs comptes et leur identifiant Uber réels.
+**Comment les comptes ont été trouvés (4 septembre 2026)** : pas depuis le tableur de
+l'expert-comptable seul — celui-ci peut noter un compte "de travail" différent de celui
+réellement utilisé à l'import (constaté sur HAGTACOS : le tableur notait
+44571100/44571500/44566020, mais Pennylane a réellement posté sur 44571008/44571006/44566).
+La source fiable est l'écriture RÉELLEMENT posée dans Pennylane, lue via l'API
+(`GET /ledger_entry_lines` filtré par date, puis `GET /ledger_entries/{id}` pour voir
+toutes les lignes de l'écriture). Voir `refac-pennylane_3/pennylane_api.py` (projet voisin)
+pour un client Pennylane déjà prêt à l'emploi.
+
+**État (4 septembre 2026) — 10 sociétés O'Tacos actives dans `index.html`** :
+- **HAGTACOS** : comptes confirmés sur l'écriture réelle de juillet 2026 ; l'outil
+  reproduit cette écriture ligne par ligne, au centime près (16 lignes, testé).
+- **COLMIOS** : comptes confirmés (identiques à la réalité). La répartition 5,5 %/10 %
+  calculée par l'outil ne retombe pas exactement sur celle réellement postée en juillet
+  (236,91 € contre 234,11 € réels sur la part 5,5 % HT — écart de quelques euros qui se
+  déplace entre les deux comptes de TVA, sans casser l'équilibre global). La méthode de
+  calcul exacte de l'expert-comptable pour COLMIOS n'a pas pu être retrouvée depuis
+  l'export Uber brut malgré plusieurs tentatives. **À confirmer avec l'expert-comptable
+  sur août 2026.**
+- **FARTACOS, EPIOS, GEIPIOS, SARIOS, HAUTIOS, MULIOS, VINIOS** : comptes confirmés via
+  l'écriture réelle de juillet 2026 de chaque dossier (même méthode qu'HAGTACOS).
+- **ARIOS** : comptes confirmés également (structure identique aux autres sauf le compte
+  de versement, `580009` au lieu de `580006`).
+- **Toutes les 8** (hors HAGTACOS/COLMIOS) : activées **sans identifiant Uber**
+  (`uberEstablishments` vide) à la demande de Baptiste le 4 sept. 2026 — l'outil ne peut
+  donc pas vérifier que le fichier Uber déposé correspond bien à la société sélectionnée
+  pour celles-ci. Il faudra un vrai export Uber de chacune pour renseigner cet
+  identifiant. Aucune n'a encore été testée avec son propre fichier Uber réel (seul un
+  test structurel avec le fichier HAGTACOS a été fait sur FARTACOS, pour vérifier que le
+  moteur applique bien les bons comptes sans erreur — pas pour valider les montants).
+
+**Prochaine étape prévue (compte rendu au 4 sept. 2026, tard le soir)** : Baptiste veut
+tester août 2026 sur les 10 sociétés O'Tacos dès que possible. Le code est prêt et poussé
+en local ; il ne manque que le push vers GitHub (bloqué côté agent, voir plus bas) pour
+que ça arrive sur `https://bmg-pennylane.netlify.app`.
+
+## Hébergement
+
+Dépôt GitHub privé : `baptiste-guilmain/bmg-preparation-pennylane`. Déployé sur Netlify
+(`https://bmg-pennylane.netlify.app`, visibilité "Public" — accessible sans compte
+Netlify, mais non répertorié) à chaque push sur `main`, dossier de publication `dist`.
+
+**Important** : l'agent Claude ne peut pas pousser vers GitHub depuis cet environnement
+(bloqué par un filtre de sécurité, quelle que soit la méthode). Chaque mise à jour de
+code doit être poussée manuellement par Baptiste :
+```
+cd "chemin du dossier"
+git push origin main
+```
+(la première fois demande une connexion GitHub via le navigateur ; ensuite c'est
+immédiat). Netlify republie automatiquement après le push.
