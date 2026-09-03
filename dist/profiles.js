@@ -67,13 +67,18 @@ export const profiles = {
     name: 'HAGTACOS',
     label: "O'Tacos Haguenau",
     establishmentId: '401010310',
+    // Comptes confirmés le 4 sept. 2026 sur l'écriture RÉELLEMENT posée dans
+    // Pennylane pour juillet 2026 (via l'API /ledger_entries), pas seulement
+    // sur le tableur de travail de l'expert-comptable : celui-ci notait
+    // 44571100/44571500/44566020, mais Pennylane a en réalité utilisé les
+    // comptes génériques 44571008/44571006/44566 ci-dessous.
     accounts: {
       uberSales55: ['70113500', 'VENTES 5,5% UBEREATS'],
-      vat55: ['44571500', 'TVA collectée à 5,5%'],
+      vat55: ['44571006', 'TVA collectée à 5,5%'],
       uberSales10: ['70112100', 'VENTES 10% UBEREATS'],
-      vat10: ['44571100', 'TVA collectée à 10%'],
+      vat10: ['44571008', 'TVA collectée à 10%'],
       commission: ['62220000', 'COMMISSIONS UBEREATS'],
-      deductibleVat: ['44566020', 'TVA sur autres biens et services'],
+      deductibleVat: ['44566', 'TVA sur autres biens et services'],
       marketing: ['62320400', 'DEPENSES MARKETING UBEREATS'],
       mealVoucher: ['58000400', 'VERSEMENT TR'],
       uberSettlement: ['58000600', 'UBEREAT']
