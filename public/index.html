@@ -15,8 +15,8 @@
   </header>
   <main>
     <section class="intro">
-      <div><p class="eyebrow">IMPORT DE CHIFFRE D'AFFAIRES</p><h1>Préparer un nouvel import</h1><p>Déposez les deux justificatifs du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération.</p></div>
-      <div class="profile-pill"><span>Profil actif</span><strong>PDFK · validé</strong></div>
+      <div><p class="eyebrow">IMPORT DE CHIFFRE D'AFFAIRES</p><h1>Préparer un nouvel import</h1><p id="intro-note">Déposez l'export Uber du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération.</p></div>
+      <div class="profile-pill"><span>Profil actif</span><strong id="profile-state">STRASGAME · Uber validé</strong></div>
     </section>
 
     <section class="panel flow-panel">
@@ -24,12 +24,12 @@
         <div class="step active"><b>1</b><span>Société</span></div><i></i><div class="step"><b>2</b><span>Fichiers</span></div><i></i><div class="step"><b>3</b><span>Contrôles</span></div><i></i><div class="step"><b>4</b><span>Téléchargement</span></div>
       </div>
       <div class="form-grid">
-        <label class="field"><span>Société</span><select id="company"><option value="pdfk">PDFK — Paradis du Fruit Strasbourg Kléber</option><option disabled>Autres sociétés — bientôt disponibles</option></select><small>Profil caisse : CA Liquide / Solide</small></label>
+        <label class="field"><span>Société</span><select id="company"><option value="strasgame" selected>STRASGAME — Crousty Game Strasbourg</option><option value="pdfk">PDFK — Paradis du Fruit Strasbourg Kléber</option></select><small id="profile-help">Profil actif : Uber seul · TVA 5,5 % et 10 %</small></label>
         <label class="field"><span>Période</span><input id="period" type="month" value="2026-08" /><small>Date d'écriture : dernier jour du mois</small></label>
       </div>
       <div class="drop-grid">
-        <label class="dropzone" id="uber-zone"><input id="uber-file" type="file" accept=".xlsx,.csv" /><span class="zone-step">IMPORT 1</span><span class="file-icon">X</span><strong>Import Uber</strong><em>Déposez l'export Uber ici</em><small>Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
-        <label class="dropzone" id="cash-zone"><input id="cash-file" type="file" accept=".pdf,.xlsx,.csv" /><span class="zone-step">IMPORT 2</span><span class="file-icon pdf">P</span><strong>Import caisse</strong><em>Déposez le rapport de caisse ici</em><small>PDF, Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
+        <label class="dropzone" id="uber-zone"><input id="uber-file" type="file" accept=".xlsx,.csv" /><span id="uber-step" class="zone-step">UBER</span><span class="file-icon">X</span><strong>Import Uber</strong><em>Déposez l'export Uber ici</em><small id="uber-help">Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
+        <label class="dropzone" id="cash-zone"><input id="cash-file" type="file" accept=".pdf,.xlsx,.csv" /><span id="cash-step" class="zone-step">IMPORT CAISSE</span><span class="file-icon pdf">P</span><strong>Import caisse</strong><em>Déposez le rapport de caisse ici</em><small id="cash-help">PDF, Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
       </div>
       <div id="preflight" class="preflight">
         <div><span class="status-dot"></span><strong>Deux imports obligatoires pour PDFK</strong><small>Ajoutez l'import Uber et l'import caisse avant de créer l'écriture comptable.</small></div>
@@ -40,7 +40,7 @@
     <section id="results" class="results" hidden>
       <div class="result-head"><div><p class="eyebrow">RÉSULTAT DU TRAITEMENT</p><h2>Écriture prête à valider</h2></div><span id="result-period"></span></div>
       <div class="kpis">
-        <article><span>CA caisse TTC</span><strong id="cash-total">—</strong><small id="cash-detail">Rapport caisse</small></article>
+        <article id="cash-kpi"><span>CA caisse TTC</span><strong id="cash-total">—</strong><small id="cash-detail">Rapport caisse</small></article>
         <article><span>CA Uber TTC net</span><strong id="uber-revenue">—</strong><small>Ventes − remboursements − promotions</small></article>
         <article><span>Total écriture</span><strong id="entry-total">—</strong><small>Débits et crédits</small></article>
       </div>
