@@ -100,7 +100,8 @@ function parseCashText(text){
   const liquid=find('Liquide','10[,\\.]0%'),solid=find('Solide','10[,\\.]0%'),alcohol=find('Alcool','20[,\\.]0%');
   if(!liquid||!solid||!alcohol) throw new Error("Les lignes Liquide 10 %, Solide 10 % et Alcool 20 % n'ont pas toutes été trouvées dans le rapport de caisse.");
   const pm=clean.match(/Du\s+\d{1,2}[\/.](\d{1,2})[\/.](\d{2,4})\s+au/i);const period=pm?`${pm[2].length===2?'20'+pm[2]:pm[2]}-${pm[1].padStart(2,'0')}`:'';
-  return {liquid,solid,alcohol,total:round(liquid.ttc+solid.ttc+alcohol.ttc),period};
+  const totalMatch=clean.match(/([0-9 .]+[,\.]\d{2})\s+([0-9 .]+[,\.]\d{2})\s+CA HT\s+CA TTC/i);const declaredTotal=totalMatch?amount(totalMatch[2]):null;
+  return {liquid,solid,alcohol,total:round(liquid.ttc+solid.ttc+alcohol.ttc),declaredTotal,period};
 }
 
 function periodInfo(){const [y,m]=$('#period').value.split('-').map(Number);return {y,m,last:new Date(Date.UTC(y,m,0)),label:`${String(m).padStart(2,'0')}.${y}`}}
@@ -128,12 +129,13 @@ $('#process').addEventListener('click',async()=>{
     if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');
     if(Math.abs(round((cash.solid.ht+cash.solid.vat)-cash.solid.ttc))>.02)errors.push('La ligne caisse Solide ne se recalcule pas.');
     if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');
+    if(cash.declaredTotal!=null&&Math.abs(round(cash.total-cash.declaredTotal))>.02)errors.push(`Le total des trois lignes caisse (${money.format(cash.total)}) ne correspond pas au total TTC du PDF (${money.format(cash.declaredTotal)}).`);
     renderResults(uber,cash,built,debit,credit,errors);
   }catch(e){errors.push(e.message||'Erreur inconnue.');renderErrors(errors)}finally{btn.disabled=false;btn.querySelector('span').textContent='Traiter les fichiers'}
 });
 function renderResults(uber,cash,built,debit,credit,errors){
   $('#results').hidden=false;$('#result-period').textContent=`PDFK · ${periodInfo().label}`;$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`;$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
-  const checks=[['Structure Uber reconnue',`${uber.rowCount} lignes · ${uber.payouts.length} versements`],['Société et période cohérentes',`${uber.establishments.join(', ')} · ${periodInfo().label}`],['Ventilation caisse reconnue','Liquide 10 % · Solide 10 % · Alcool 20 %'],['TVA recalculée',`Uber 10 % · Frais 20 %`],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]];
+  const checks=[['Structure Uber reconnue',`${uber.rowCount} lignes · ${uber.payouts.length} versements`],['Société et période cohérentes',`${uber.establishments.join(', ')} · ${periodInfo().label}`],['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`],['TVA recalculée',`Uber 10 % · Frais 20 %`],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]];
   $('#check-list').innerHTML=checks.map(x=>`<div class="check-row"><b>✓</b><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');$('#check-badge').textContent=errors.length?'À corriger':`${checks.length} contrôles validés`;state.valid=!errors.length;renderRows();renderErrors(errors);$('#download').disabled=!state.valid;$('#download-status').textContent=state.valid?'Fichier validé et prêt':'Génération bloquée';$('#download-help').textContent=state.valid?`${state.rows.length} lignes comptables · format Excel Pennylane`:'Corrigez les erreurs signalées puis relancez le traitement.';$('#results').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function renderRows(){const shown=state.allShown?state.rows:state.rows.slice(0,8);$('#rows').innerHTML=shown.map(r=>`<tr><td>${r.date}</td><td>${r.journal||'—'}</td><td>${r.account}</td><td>${esc(r.label)}</td><td class="num">${r.debit!=null?money.format(r.debit):'—'}</td><td class="num">${r.credit!=null?money.format(r.credit):'—'}</td></tr>`).join('');$('#toggle-rows').textContent=state.allShown?'Réduire':`Afficher les ${state.rows.length} lignes`}
