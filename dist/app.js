@@ -90,9 +90,13 @@ async function parseCash(file){
   const records=ext==='xlsx'?await parseXlsx(file):parseDelimited(await file.text());return parseCashText(records.flat().join(' '));
 }
 function parseCashText(text){
-  const clean=text.replace(/[\u00a0\u202f]/g,' ').replace(/€/g,' '); const find=(label,rate)=>{
-    const patterns=[new RegExp(`${label}\\s+([0-9 .]+[,\\.]\\d{2})\\s+([0-9 .]+[,\\.]\\d{2})\\s+([0-9 .]+[,\\.]\\d{2})\\s*${rate}`,'i'),new RegExp(`([0-9 .]+[,\\.]\\d{2})\\s*${label}\\s+([0-9 .]+[,\\.]\\d{2})\\s+([0-9 .]+[,\\.]\\d{2})\\s*${rate}`,'i')];
-    for(const p of patterns){const m=clean.match(p);if(m){const nums=m.slice(1,4).map(amount);const ht=patterns.indexOf(p)===0?nums[0]:nums[0],ttc=patterns.indexOf(p)===0?nums[1]:nums[1],vat=nums[2];return {ht,ttc,vat}}}return null};
+  const clean=text.replace(/[\u00a0\u202f\uFFFD]/g,' ').replace(/€/g,' '); const find=(label,rate)=>{
+    // Le rapport PDF émet une ligne sous la forme : « HT Libellé TTC TVA Taux ».
+    // Cette forme exacte est prioritaire : les titres et les totaux contiennent aussi
+    // les mots « Liquide » et « Solide » et ne doivent jamais servir de source.
+    const exact=new RegExp(`([0-9 .]+[,\\.]\\d{2})\\s+${label}\\s+([0-9 .]+[,\\.]\\d{2})\\s+([0-9 .]+[,\\.]\\d{2})\\s*${rate}`,'i');
+    const m=clean.match(exact);if(m){const [ht,ttc,vat]=m.slice(1,4).map(amount);return {ht,ttc,vat}}
+    return null};
   const liquid=find('Liquide','10[,\\.]0%'),solid=find('Solide','10[,\\.]0%'),alcohol=find('Alcool','20[,\\.]0%');
   if(!liquid||!solid||!alcohol) throw new Error("Les lignes Liquide 10 %, Solide 10 % et Alcool 20 % n'ont pas toutes été trouvées dans le rapport de caisse.");
   const pm=clean.match(/Du\s+\d{1,2}[\/.](\d{1,2})[\/.](\d{2,4})\s+au/i);const period=pm?`${pm[2].length===2?'20'+pm[2]:pm[2]}-${pm[1].padStart(2,'0')}`:'';
