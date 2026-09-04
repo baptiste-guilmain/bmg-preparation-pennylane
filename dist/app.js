@@ -60,8 +60,14 @@ async function parseUber(file){
   if(headerIndex<0) throw new Error("Colonnes Uber non reconnues. Vérifiez qu'il s'agit de l'export détaillé Uber Eats.");
   const headers=records[headerIndex].map(normalize), rawData=records.slice(headerIndex+1).filter(r=>r.some(v=>v!==''&&v!=null));
   const col=(aliases)=>{for(const a of aliases){const i=headers.findIndex(h=>h===normalize(a)||h.includes(normalize(a)));if(i>=0)return i}return -1};
-  const ix={currency:col(['Code de devise']),establishment:col(["Identifiant de l’établissement externe","Identifiant de l'etablissement externe"]),orderDate:col(['Date de la commande']),orderId:col(['Id. de la commande','Id de la commande']),sales:col(['Ventes (TVA incluse)','Total des ventes d articles TVA incluse']),refund:col(['Montant de la facturation rétroactive (TVA incluse)','Montant de la facturation retroactive TVA incluse']),promo:col(['Offres sur les articles (TVA incluse)','Promotions du commerçant appliquées aux plats articles TVA incluse']),vat1:col(['TVA 1','Montant TVA 1','TVA 1 (montant)']),vat2:col(['TVA 2','Montant TVA 2','TVA 2 (montant)']),offerFee:col(["Frais d'utilisation de l'offre"]),offerVat:col(["TVA sur les frais d'utilisation de l'offre"]),marketingAdjustment:col(['Ajustement marketing (TVA incluse)']),voucher:col(['Titre-restaurant']),commission:col(['Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)','Frais de service Uber facturés au commerçant après application de la réduction']),commissionVat:col(['TVA sur les frais de service de la Marketplace / frais de mise en relation après offre','TVA sur les frais de service Uber']),other:col(['Autres paiements (TVA incluse)']),total:col(['Montant total']),payout:col(['Date du versement'])};
-  const missing=Object.entries(ix).filter(([k,v])=>v<0&&!['offerFee','offerVat','vat1','vat2','marketingAdjustment'].includes(k)).map(([k])=>k);
+  const ix={currency:col(['Code de devise']),establishment:col(["Identifiant de l’établissement externe","Identifiant de l'etablissement externe","Identifiant externe du commerce"]),orderDate:col(['Date de la commande']),orderId:col(['Id. de la commande','Id de la commande']),sales:col(['Ventes (TVA incluse)','Total des ventes d articles TVA incluse','Ventes (incluant la TVA)']),refund:col(['Montant de la facturation rétroactive (TVA incluse)','Montant de la facturation retroactive TVA incluse','Montant de la rétrofacturation (TVA comprise)']),promo:col(['Offres sur les articles (TVA incluse)','Promotions du commerçant appliquées aux plats articles TVA incluse','Offres sur des articles (TVA comprise)']),vat1:col(['TVA 1 sur les ventes','TVA 1','Montant TVA 1','TVA 1 (montant)']),vat2:col(['TVA 2 sur les ventes','TVA 2','Montant TVA 2','TVA 2 (montant)']),
+    // Colonnes de TVA 1/2 séparées sur les ajustements (rétrofacturation) et les
+    // offres/rabais : présentes chez certaines sociétés (COLMIOS, DOZ) mais pas
+    // d'autres (HAGTACOS, STRASGAME, PDFK). Absentes => 0, jamais bloquant.
+    vat1Adjustment:col(['TVA 1 sur les ajustements','TVA1 sur les ajustements']),vat2Adjustment:col(['TVA 2 sur les ajustements','TVA2 sur les ajustements']),
+    vat1Offer:col(['TVA 1 sur les offres','TVA 1 sur les rabais']),vat2Offer:col(['TVA 2 sur les offres','TVA 2 sur les rabais']),
+    offerFee:col(["Frais d'utilisation de l'offre"]),offerVat:col(["TVA sur les frais d'utilisation de l'offre"]),marketingAdjustment:col(['Ajustement marketing (TVA incluse)']),voucher:col(['Titre-restaurant','Bon de réduction-restaurant']),commission:col(['Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)','Frais de service Uber facturés au commerçant après application de la réduction','Frais de mise en marché après rabais (TVA en sus)']),commissionVat:col(['TVA sur les frais de service de la Marketplace / frais de mise en relation après offre','TVA sur les frais de service Uber','TVA sur les frais de mise en marché après rabais']),other:col(['Autres paiements (TVA incluse)','Paiements divers (TVA comprise)']),total:col(['Montant total','Versement total']),payout:col(['Date du versement'])};
+  const missing=Object.entries(ix).filter(([k,v])=>v<0&&!['offerFee','offerVat','vat1','vat2','vat1Adjustment','vat2Adjustment','vat1Offer','vat2Offer','marketingAdjustment'].includes(k)).map(([k])=>k);
   if(profile.vatBreakdown==='5.5-and-10'&&(ix.vat1<0||ix.vat2<0)) missing.push('TVA 1 / TVA 2');
   if(missing.length) throw new Error(`Export Uber incomplet : ${missing.length} colonne(s) indispensable(s) absente(s).`);
   const data=rawData.filter(r=>normalize(r[ix.currency])==='eur');
@@ -70,7 +76,11 @@ async function parseUber(file){
   const payouts=new Map(); data.forEach(r=>{const v=amount(r[ix.total]);const d=dateValue(r[ix.payout]);const key=d||'À venir';payouts.set(key,round((payouts.get(key)||0)+v))});
   const establishments=[...new Set(data.map(r=>String(r[ix.establishment]||'').trim()).filter(Boolean))];
   const periods=[...new Set(data.map(r=>monthValue(r[ix.orderDate])).filter(Boolean))];
-  return {sales:sum('sales'),refund:sum('refund'),promo:sum('promo'),vat1:ix.vat1<0?0:sum('vat1'),vat2:ix.vat2<0?0:sum('vat2'),offerFee:sum('offerFee'),offerVat:sum('offerVat'),marketingAdjustment:ix.marketingAdjustment<0?0:sum('marketingAdjustment'),voucher:sum('voucher'),commission:sum('commission'),commissionVat:sum('commissionVat'),other:sum('other'),total:sum('total'),payouts:[...payouts].filter(([,v])=>Math.abs(v)>.004),establishments,periods,rowCount:data.length};
+  const vatSum=k=>ix[k]<0?0:sum(k);
+  return {sales:sum('sales'),refund:sum('refund'),promo:sum('promo'),
+    vat1:round(vatSum('vat1')+vatSum('vat1Adjustment')+vatSum('vat1Offer')),
+    vat2:round(vatSum('vat2')+vatSum('vat2Adjustment')+vatSum('vat2Offer')),
+    offerFee:sum('offerFee'),offerVat:sum('offerVat'),marketingAdjustment:ix.marketingAdjustment<0?0:sum('marketingAdjustment'),voucher:sum('voucher'),commission:sum('commission'),commissionVat:sum('commissionVat'),other:sum('other'),total:sum('total'),payouts:[...payouts].filter(([,v])=>Math.abs(v)>.004),establishments,periods,rowCount:data.length};
 }
 function amount(v){
   if(v==null||v==='')return 0;
@@ -131,7 +141,7 @@ function line(date,journal,account,label,debit=null,credit=null,vat=null){return
 function buildRows(uber,cash){
   const p=periodInfo(),date=frDate(p.last),ul=`UBEREAT ${p.label}`,cl=`RECETTES ${p.label}`,a=profile.accounts,journal=profile.uberJournal||'';const revenue=round(uber.sales+uber.refund+uber.promo),commission=Math.abs(uber.commission),commissionVat=Math.abs(uber.commissionVat);
   let salesHt,salesVat,marketingHt,marketingVat,marketingTtc,rows=[];
-  if(profile.vatBreakdown==='5.5-and-10'||profile.vatBreakdown==='otacos-5.5-and-10'){
+  if(profile.vatBreakdown==='5.5-and-10'||profile.vatBreakdown==='otacos-5.5-and-10'||profile.vatBreakdown==='doz-5.5-and-10'){
     const vat55=Math.abs(uber.vat1),vat10raw=Math.abs(uber.vat2);let sales55,ht10,vat10;
     if(profile.vatBreakdown==='otacos-5.5-and-10'){
       // Ventilation validée sur le modèle HAGTACOS de juillet 2026 : la colonne
@@ -139,12 +149,34 @@ function buildRows(uber,cash){
       // d'arrondi par commande) ; on isole donc la part 5,5 % via sa propre TVA,
       // puis la part 10 % par différence sur le total TTC (ventes + rétro + offres).
       sales55=vat55/.055;const ttc55=sales55*1.055,ttc10=revenue-ttc55;ht10=ttc10/1.10;vat10=ttc10-ht10;
+    }else if(profile.vatBreakdown==='doz-5.5-and-10'){
+      // Ventilation validée sur le modèle DOZ - Colmar de juillet 2026 (méthode
+      // inverse de l'otacos) : la part 10 % s'obtient proprement depuis la TVA 2
+      // brute (ventes + rétro + offres), la part 5,5 % est le reliquat du total
+      // TTC une fois la part 10 % retirée. Donne les montants exacts du modèle,
+      // à 10 décimales près.
+      ht10=vat10raw/.1;const ttc10=ht10+vat10raw,ttc55=revenue-ttc10;sales55=ttc55/1.055;vat10=vat10raw;const vat55b=ttc55-sales55;
+      salesHt=round(sales55+ht10);salesVat=round(vat55b+vat10);
+      rows=[line(date,journal,a.uberSales55,ul,null,round(sales55),.055),line(date,journal,a.vat55,ul,null,round(vat55b)),line(date,journal,a.uberSales10,ul,null,round(ht10),.10),line(date,journal,a.vat10,ul,null,round(vat10))];
     }else{
       sales55=round(vat55/.055);ht10=round((revenue-vat55-vat10raw)-sales55);vat10=vat10raw;
     }
-    salesHt=round(sales55+ht10);salesVat=round(vat55+vat10);
-    rows=[line(date,journal,a.uberSales55,ul,null,round(sales55),.055),line(date,journal,a.vat55,ul,null,round(vat55)),line(date,journal,a.uberSales10,ul,null,round(ht10),.10),line(date,journal,a.vat10,ul,null,round(vat10))];
-    marketingTtc=round(Math.abs(uber.offerFee)+Math.abs(uber.offerVat)+Math.abs(uber.other));marketingHt=round(marketingTtc/(1+profile.expenseVat));marketingVat=round(marketingTtc-marketingHt);
+    if(profile.vatBreakdown!=='doz-5.5-and-10'){
+      salesHt=round(sales55+ht10);salesVat=round(vat55+vat10);
+      rows=[line(date,journal,a.uberSales55,ul,null,round(sales55),.055),line(date,journal,a.vat55,ul,null,round(vat55)),line(date,journal,a.uberSales10,ul,null,round(ht10),.10),line(date,journal,a.vat10,ul,null,round(vat10))];
+    }
+    if(profile.marketingSplit){
+      // DOZ : les frais d'offre Uber (déjà ventilés HT/TVA par Uber) sont repris
+      // tels quels, sans re-répartition ; seuls les "paiements divers" sont
+      // regroupés puis reventilés à 20 %. Mélanger les deux (comme pour O'Tacos)
+      // décale le résultat de plusieurs centimes — écart réel constaté et à éviter.
+      const otherTtc=Math.abs(uber.other),otherHt=round(otherTtc/(1+profile.expenseVat)),otherVat=round(otherTtc-otherHt);
+      const offerHt=round(Math.abs(uber.offerFee)),offerVat=round(Math.abs(uber.offerVat));
+      marketingHt=otherHt;marketingVat=otherVat;marketingTtc=round(otherHt+otherVat+offerHt+offerVat);
+      rows.push(line(date,journal,a.marketing,ul,offerHt,null,profile.expenseVat),line(date,journal,a.deductibleVat,ul,offerVat));
+    }else{
+      marketingTtc=round(Math.abs(uber.offerFee)+Math.abs(uber.offerVat)+Math.abs(uber.other));marketingHt=round(marketingTtc/(1+profile.expenseVat));marketingVat=round(marketingTtc-marketingHt);
+    }
   }else{
     salesHt=round(revenue/(1+profile.uberVat));salesVat=round(revenue-salesHt);const otherTtc=Math.abs(uber.other),otherHt=round(otherTtc/(1+profile.expenseVat));marketingHt=round(Math.abs(uber.offerFee)+otherHt);marketingVat=round(Math.abs(uber.offerVat)+(otherTtc-otherHt));marketingTtc=round(marketingHt+marketingVat);
     rows=[line(date,journal,a.uberSales,ul,null,salesHt,profile.uberVat),line(date,journal,a.vat10,ul,null,salesVat)];
@@ -183,6 +215,7 @@ function renderResults(uber,cash,built,debit,credit,errors){
   const checks=[['Structure Uber reconnue',`${uber.rowCount} lignes · ${uber.payouts.length} versements`],['Société et période cohérentes',`${uber.establishments.join(', ')} · ${periodInfo().label}`]];
   if(profile.vatBreakdown==='5.5-and-10')checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % : ${money.format(Math.abs(uber.vat2))}`]);
   if(profile.vatBreakdown==='otacos-5.5-and-10')checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat1)))}`]);
+  if(profile.vatBreakdown==='doz-5.5-and-10')checks.push(['TVA Uber ventilée',`10 % : ${money.format(Math.abs(uber.vat2))} · 5,5 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat2)))}`]);
   if(cash)checks.push(['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`]);
   checks.push(['TVA recalculée',profile.vatBreakdown==='5.5-and-10'?'Uber 5,5 % / 10 % · Frais 20 %':'Uber 10 % · Frais 20 %'],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]);
   $('#check-list').innerHTML=checks.map(x=>`<div class="check-row"><b>✓</b><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');$('#check-badge').textContent=errors.length?'À corriger':`${checks.length} contrôles validés`;state.valid=!errors.length;renderRows();renderErrors(errors);$('#download').disabled=!state.valid;$('#download-status').textContent=state.valid?'Fichier validé et prêt':'Génération bloquée';$('#download-help').textContent=state.valid?`${state.rows.length} lignes comptables · format Excel Pennylane`:'Corrigez les erreurs signalées puis relancez le traitement.';$('#results').scrollIntoView({behavior:'smooth',block:'start'});

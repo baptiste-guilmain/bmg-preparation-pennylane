@@ -15,6 +15,27 @@ function otacosProfile({ id, name, label, establishmentId, accounts }) {
   };
 }
 
+// Profil générique DOZ (marque distincte d'O'Tacos) : Uber seul, TVA 5,5 % et 10 %,
+// mais avec une ventilation INVERSE de celle d'O'Tacos (la part 10 % est l'ancre,
+// calculée depuis la TVA 2 brute ; la part 5,5 % est le reliquat) et un traitement
+// séparé des frais d'offre Uber (repris tels quels, sans re-répartition à 20 %).
+// Voir la formule dans app.js (vatBreakdown 'doz-5.5-and-10', marketingSplit),
+// validée cellule par cellule sur le modèle DOZ - Colmar de juillet 2026.
+function dozProfile({ id, name, label, establishmentId, accounts }) {
+  return {
+    id,
+    name,
+    label,
+    mode: 'uber-only',
+    uberJournal: '',
+    vatBreakdown: 'doz-5.5-and-10',
+    marketingSplit: true,
+    expenseVat: 0.20,
+    uberEstablishments: establishmentId ? [establishmentId] : [],
+    accounts
+  };
+}
+
 export const profiles = {
   pdfk: {
     id: 'pdfk',
@@ -157,7 +178,27 @@ export const profiles = {
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
-  } })
+  } }),
+  // DOZ - Colmar : comptes et formule confirmés le 4 sept. 2026 en reconstituant
+  // exactement les lignes de synthèse du modèle de juillet 2026 (fourni par
+  // Baptiste avec entrée ET sortie attendues), vérifiés à 10 décimales près.
+  colmardoz: dozProfile({
+    id: 'colmardoz',
+    name: 'COLMARDOZ',
+    label: 'DOZ Colmar',
+    establishmentId: '6a09a19a61bc6e0023ac2480',
+    accounts: {
+      uberSales55: ['70114000', 'VENTES 5,5% UBEREATS'],
+      vat55: ['44571500', 'TVA collectée à 5,5%'],
+      uberSales10: ['70113000', 'VENTES 10% UBEREATS'],
+      vat10: ['44571100', 'TVA collectée à 10%'],
+      commission: ['62220000', 'COMMISSIONS UBEREATS'],
+      deductibleVat: ['44566020', 'TVA sur autres biens et services'],
+      marketing: ['62320500', 'DEPENSES MARKETING UBEREATS'],
+      mealVoucher: ['58000400', 'VERSEMENT TR'],
+      uberSettlement: ['58000600', 'UBEREAT']
+    }
+  })
 };
 
 export const getProfile = id => profiles[id] || null;

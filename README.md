@@ -59,10 +59,46 @@ pour un client Pennylane déjà prêt à l'emploi.
   test structurel avec le fichier HAGTACOS a été fait sur FARTACOS, pour vérifier que le
   moteur applique bien les bons comptes sans erreur — pas pour valider les montants).
 
-**Prochaine étape prévue (compte rendu au 4 sept. 2026, tard le soir)** : Baptiste veut
-tester août 2026 sur les 10 sociétés O'Tacos dès que possible. Le code est prêt et poussé
-en local ; il ne manque que le push vers GitHub (bloqué côté agent, voir plus bas) pour
-que ça arrive sur `https://bmg-pennylane.netlify.app`.
+**Mise à jour (4 septembre 2026, plus tard)** : en construisant le profil DOZ (voir
+section suivante), découverte de la vraie cause du petit écart COLMIOS ci-dessus — le
+moteur ne lisait qu'**une seule** colonne "TVA 1"/"TVA 2" par commande, alors que
+certains exports Uber (COLMIOS, DOZ) séparent la TVA en plusieurs colonnes : ventes,
+ajustements (rétrofacturation) et offres. Corrigé : `parseUber` additionne désormais les
+trois sources pour chaque taux. Vérifié sans régression sur HAGTACOS (toujours exact au
+centime). Sur COLMIOS, ça rapproche le calcul de la réalité sans le rendre parfaitement
+exact (résidu de quelques centimes, cohérent avec un arrondi Uber par commande cumulé sur
+810 lignes) — toujours à confirmer avec l'expert-comptable sur août 2026.
+
+## Marque DOZ (distincte d'O'Tacos)
+
+Deuxième moteur commun (`vatBreakdown: 'doz-5.5-and-10'`, `marketingSplit: true` dans
+`app.js`/`profiles.js`), pour une marque BMG différente (DOZ), validé cellule par cellule
+sur le modèle **DOZ - Colmar** de juillet 2026 (fourni par Baptiste avec le fichier brut
+ET les lignes comptables attendues) :
+
+- La ventilation 5,5 %/10 % est **inversée** par rapport à O'Tacos : ici la part 10 % est
+  l'ancre fiable (`TVA 2 / 0,1`, sommée sur ventes + ajustements + offres), et la part
+  5,5 % est le reliquat du total TTC une fois la part 10 % retirée. Vérifié exact à la
+  décimale sur COLMARDOZ (16 lignes, y compris les 5 versements).
+- Les frais d'offre Uber (`Frais d'utilisation de l'offre` / sa TVA) sont repris **tels
+  quels**, sans reventilation à 20 % — Uber les fournit déjà ventilés HT/TVA. Seuls les
+  « Paiements divers » sont regroupés puis reventilés à 20 %. Les combiner (comme pour
+  O'Tacos) décale le résultat de plusieurs centimes : écart réel constaté et évité ici.
+- Le vocabulaire des colonnes Uber diffère aussi de celui d'O'Tacos/PDFK/STRASGAME
+  (« Ventes (incluant la TVA) » au lieu de « Ventes (TVA incluse) », « Identifiant externe
+  du commerce » au lieu de « Identifiant de l'établissement externe », etc.) — `parseUber`
+  accepte désormais les deux formulations pour chaque colonne concernée.
+
+**État** : **COLMARDOZ** (DOZ Colmar) actif, comptes et formule confirmés sur juillet
+2026. Baptiste a indiqué que **STRASDOZ** suit la même logique ("idem à Strasdoz") — son
+profil n'est pas encore créé, en attente de son fichier ou a minima de son identifiant
+Uber et la confirmation que ses comptes sont identiques à COLMARDOZ.
+
+## Prochaine étape
+
+Baptiste veut tester août 2026 sur les 10 sociétés O'Tacos (et COLMARDOZ) dès que
+possible. Le code est prêt et poussé en local ; il ne manque que le push vers GitHub
+(bloqué côté agent, voir plus bas) pour que ça arrive sur `https://bmg-pennylane.netlify.app`.
 
 ## Hébergement
 
