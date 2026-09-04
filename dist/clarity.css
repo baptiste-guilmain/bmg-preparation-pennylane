@@ -1,6 +1,12 @@
-.zone-step{position:absolute;top:13px;left:13px;border-radius:99px;padding:4px 8px;background:#e8f3ed;color:var(--green-dark);font-size:9px;font-weight:800;letter-spacing:.08em;pointer-events:none}
 .dropzone input{z-index:2}
 .chosen{z-index:1}
+
+/* Distinguer clairement les deux zones de dépôt : quel fichier va où, et à quoi il
+   ressemble (au lieu de badges "X"/"P" qui laissaient croire, à tort, que la caisse
+   n'accepte que du PDF). Numéro simple + description du fichier source réel. */
+.dropzone{height:auto;min-height:195px;padding:20px 18px}
+.dropzone em{max-width:88%;line-height:1.45}
+.file-icon{border-radius:50%;font-size:15px}
 
 /* Repères visuels de progression : les étapes déjà passées restent marquées,
    pas seulement l'étape courante (avant : seule "Société" s'allumait jamais),

@@ -47,7 +47,7 @@ function setProfile(id){
   $('#intro-note').textContent=needsCash?"Déposez les deux justificatifs du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération.":`Déposez l'export Uber du mois. L'outil applique les règles ${profile.name} et vérifie l'écriture avant génération.`;
   $('#uber-help').textContent=`Excel ou CSV · obligatoire pour ${profile.name}`;
   $('#cash-help').textContent=`PDF, Excel ou CSV · obligatoire pour ${profile.name}`;
-  $('#uber-step').textContent='UBER'; $('#cash-step').textContent='IMPORT CAISSE'; $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight();
+  $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight();
 }
 $('#company').addEventListener('change',e=>setProfile(e.target.value));
 setProfile('strasgame');
