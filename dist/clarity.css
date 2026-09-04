@@ -1,3 +1,28 @@
 .zone-step{position:absolute;top:13px;left:13px;border-radius:99px;padding:4px 8px;background:#e8f3ed;color:var(--green-dark);font-size:9px;font-weight:800;letter-spacing:.08em;pointer-events:none}
 .dropzone input{z-index:2}
 .chosen{z-index:1}
+
+/* Repères visuels de progression : les étapes déjà passées restent marquées,
+   pas seulement l'étape courante (avant : seule "Société" s'allumait jamais),
+   pour qu'on voie où on en est d'un coup d'œil. Réutilise .step.active existant. */
+.step{transition:color .2s}
+.step b{transition:background .2s,border-color .2s,color .2s}
+
+/* Retour visuel au survol : les contrôles interactifs doivent avoir l'air interactifs. */
+.field select:hover,.field input:hover{border-color:#aab8b2}
+.field select:focus,.field input:focus{border-color:var(--green);outline:none;box-shadow:0 0 0 3px var(--green-soft)}
+.preflight button:not(:disabled):hover{background:var(--green-dark)}
+.download-bar button:not(:disabled):hover{background:#dcece4}
+.preview-title button:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+/* Lignes du tableau d'aperçu : repère au survol pour suivre une ligne sur beaucoup de colonnes. */
+#rows tr:hover{background:#f8faf8}
+
+/* Regroupement du sélecteur de société : rend les 13 options plus faciles à scanner. */
+#company optgroup{font:700 11px/1.4 Inter,"Segoe UI",Arial,sans-serif;color:var(--muted);letter-spacing:.04em}
+#company option{font-weight:400;color:var(--ink)}
+
+/* État "prêt" plus visible sur la puce de statut, sans dépendre uniquement de la couleur. */
+.status-dot{transition:background .2s,border-color .2s,transform .2s}
+.status-dot.ready{transform:scale(1.15)}
