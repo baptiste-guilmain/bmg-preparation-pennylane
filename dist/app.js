@@ -9,7 +9,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
 const normalize = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u00a0/g,' ').replace(/[^a-zA-Z0-9]+/g,' ').trim().toLowerCase();
 
 let profile = getProfile('strasgame');
-let state={files:{uber:null,cash:null}, rows:[], allShown:false, valid:false};
+let state={files:{uber:null,cash:null,operations:null}, rows:[], allShown:false, valid:false};
 let pennylanePayload=null;
 
 function bindFile(inputSel,zoneSel,key){
@@ -21,34 +21,34 @@ function bindFile(inputSel,zoneSel,key){
 }
 function setFile(file,zone,key){
   if(!file)return; const box=zone.querySelector('.chosen'); state.files[key]=file; zone.classList.add('has-file'); box.hidden=false;
-  const label=key==='uber'?'Import Uber':'Import caisse';
+  const label=key==='uber'?'Import Uber':key==='operations'?'Opérations quotidiennes':'Import caisse';
   box.innerHTML=`<span class="file-icon ${key==='cash'?'pdf':''}">${key==='cash'?'P':'X'}</span><strong>${esc(file.name)}</strong><span>✓ ${label} reçu · ${formatBytes(file.size)} · cliquer pour remplacer</span>`;
   updatePreflight();
 }
 function setStep(n){document.querySelectorAll('.steps .step').forEach((el,i)=>el.classList.toggle('active',i<n))}
 function updatePreflight(){
-  const uberReady=Boolean(state.files.uber),cashReady=Boolean(state.files.cash),needsCash=profile.mode==='uber-and-cash',ready=uberReady&&(!needsCash||cashReady);
+  const uberReady=Boolean(state.files.uber),cashReady=Boolean(state.files.cash),operationsReady=Boolean(state.files.operations),needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',cashInputsReady=otacosCash?cashReady&&operationsReady:cashReady,ready=uberReady&&(!needsCash||cashInputsReady);
   $('#process').disabled=!ready; $('.status-dot').classList.toggle('ready',ready);
-  let title=needsCash?`Deux imports obligatoires pour ${profile.name}`:`Import Uber obligatoire pour ${profile.name}`;
-  let help=needsCash?"Ajoutez l'import Uber et l'import caisse avant de créer l'écriture comptable.":"Ajoutez l'export Uber pour créer l'écriture comptable.";
-  if(needsCash&&uberReady&&!cashReady){title='Import Uber reçu';help="Ajoutez maintenant l'import caisse pour créer l'écriture comptable."}
-  if(needsCash&&!uberReady&&cashReady){title='Import caisse reçu';help="Ajoutez maintenant l'import Uber pour créer l'écriture comptable."}
-  if(ready){title=needsCash?'Les deux imports sont prêts':'Import Uber prêt';help="Vous pouvez créer l'écriture comptable."}
+  let title=needsCash?(otacosCash?`Trois imports obligatoires pour ${profile.name}`:`Deux imports obligatoires pour ${profile.name}`):`Import Uber obligatoire pour ${profile.name}`;
+  let help=needsCash?(otacosCash?"Ajoutez l'export Uber, le fichier Taxes et les Opérations quotidiennes.":"Ajoutez l'import Uber et l'import caisse avant de créer l'écriture comptable."):"Ajoutez l'export Uber pour créer l'écriture comptable.";
+  if(needsCash&&uberReady&&!cashInputsReady){title='Import Uber reçu';help=otacosCash?"Ajoutez maintenant les fichiers Taxes et Opérations quotidiennes.":"Ajoutez maintenant l'import caisse pour créer l'écriture comptable."}
+  if(needsCash&&!uberReady&&cashInputsReady){title='Imports caisse reçus';help="Ajoutez maintenant l'import Uber pour créer l'écriture comptable."}
+  if(ready){title=needsCash?'Les imports sont prêts':'Import Uber prêt';help="Vous pouvez créer l'écriture comptable."}
   $('#preflight strong').textContent=title; $('#preflight small').textContent=help;
   setStep(ready?2:1);
 }
 function formatBytes(n){return n>1048576?`${(n/1048576).toFixed(1)} Mo`:`${Math.ceil(n/1024)} Ko`}
-bindFile('#uber-file','#uber-zone','uber'); bindFile('#cash-file','#cash-zone','cash');
+bindFile('#uber-file','#uber-zone','uber'); bindFile('#cash-file','#cash-zone','cash'); bindFile('#operations-file','#operations-zone','operations');
 function clearFile(key){const zone=$(`#${key}-zone`),input=$(`#${key}-file`),box=zone.querySelector('.chosen');state.files[key]=null;input.value='';zone.classList.remove('has-file');box.hidden=true}
 function setProfile(id){
   profile=getProfile(id); const needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',dozCash=profile.cashAdapter==='doz-taxes';
-  clearFile('uber'); clearFile('cash'); $('#cash-zone').hidden=!needsCash;
+  clearFile('uber'); clearFile('cash'); clearFile('operations'); $('#cash-zone').hidden=!needsCash; $('#operations-zone').hidden=!otacosCash;
   $('#profile-state').textContent=needsCash?`${profile.name} · Uber + caisse validés`:`${profile.name} · Uber validé`;
   $('#profile-help').textContent=needsCash?(otacosCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':dozCash?'Profil caisse : TVA 5,5 % / 10 %':'Profil caisse : CA Liquide / Solide'):(profile.vatBreakdown?'Profil actif : Uber seul · TVA 5,5 % et 10 %':'Profil actif : Uber seul');
-  $('#intro-note').textContent=needsCash?"Déposez les deux justificatifs du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération.":`Déposez l'export Uber du mois. L'outil applique les règles ${profile.name} et vérifie l'écriture avant génération.`;
+  $('#intro-note').textContent=needsCash?(otacosCash?"Déposez l'export Uber, le rapport Taxes et les Opérations quotidiennes du mois. Uber et Deliveroo sont retirés de la caisse ; aucune écriture Deliveroo n'est créée ici.":"Déposez les deux justificatifs du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération."):`Déposez l'export Uber du mois. L'outil applique les règles ${profile.name} et vérifie l'écriture avant génération.`;
   $('#uber-help').textContent=`Excel ou CSV · obligatoire pour ${profile.name}`;
   $('#cash-help').textContent=(otacosCash||dozCash)?`Excel (.xlsx) · obligatoire pour ${profile.name}`:`PDF, Excel ou CSV · obligatoire pour ${profile.name}`;
-  $('#cash-zone em').textContent=otacosCash?"Le rapport de taxes du logiciel de caisse (export Excel, feuille « Reports »), pour le mois concerné":dozCash?"Le rapport de taxes du logiciel de caisse (export Excel avec les onglets Revenus/TVA), pour le mois concerné":"Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)";
+  $('#cash-zone em').textContent=otacosCash?"Le rapport Excel brut « Taxes » du logiciel de caisse, feuille « Reports », pour le mois concerné":dozCash?"Le rapport de taxes du logiciel de caisse (export Excel avec les onglets Revenus/TVA), pour le mois concerné":"Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)";
   $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight(); resetPennylanePanel();
 }
 $('#company').addEventListener('change',e=>setProfile(e.target.value));
@@ -132,8 +132,8 @@ async function parseXlsx(file,sheetNameMatch){
 }
 function lettersToIndex(s){let n=0;for(const c of s)n=n*26+c.charCodeAt(0)-64;return n-1}
 
-async function parseCash(file){
-  if(profile.cashAdapter==='otacos-taxes') return parseCashOtacos(file);
+async function parseCash(file,operationsFile,uberRevenue){
+  if(profile.cashAdapter==='otacos-taxes') return parseCashOtacos(file,operationsFile,uberRevenue);
   if(profile.cashAdapter==='doz-taxes') return parseCashDoz(file);
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf'){
@@ -155,34 +155,34 @@ function parseCashText(text){
   const totalMatch=clean.match(/([0-9 .]+[,\.]\d{2})\s+([0-9 .]+[,\.]\d{2})\s+CA HT\s+CA TTC/i);const declaredTotal=totalMatch?amount(totalMatch[2]):null;
   return {liquid,solid,alcohol,total:round(liquid.ttc+solid.ttc+alcohol.ttc),declaredTotal,period};
 }
-async function parseCashOtacos(file){
-  const ext=file.name.split('.').pop().toLowerCase();
-  if(ext!=='xlsx') throw new Error('Le rapport caisse doit être le fichier Excel "Reports" exporté du logiciel de caisse.');
-  const rows=await parseXlsx(file);
-  // Le classeur du logiciel de caisse liste d'abord un tableau "Toutes plateformes"
-  // (Uber Eats et Deliveroo inclus dans les ventes), puis un second tableau
-  // identique mais hors plateformes de livraison (parfois intitulé "Retraitement
-  // plat. Livr.") : c'est ce SECOND tableau qu'il faut utiliser, sinon le CA Uber
-  // Eats serait compté deux fois (une fois ici, une fois dans l'écriture UBEREAT).
-  // On garde donc la DERNIÈRE occurrence de chaque ligne "T.V.A. ..." rencontrée.
-  // Validé cellule par cellule contre l'écriture RÉELLEMENT postée dans Pennylane
-  // pour 7 sociétés en juillet 2026 (HAGTACOS, COLMIOS, EPIOS, FARTACOS, GEIPIOS,
-  // HAUTIOS, MULIOS, SARIOS).
-  // Lecture directe des valeurs numériques (PAS via amount()) : ce rapport contient
-  // des totaux mensuels qui dépassent souvent 30 000, seuil que amount() interprète
-  // à tort comme une date Excel (heuristique pensée pour les lignes Uber, où un tel
-  // montant par commande ne se produit jamais). Ici les cellules sont déjà des
-  // nombres natifs du tableur, aucune conversion de format n'est nécessaire.
+async function parseCashOtacos(file,operationsFile,uberRevenue){
+  const ext=file.name.split('.').pop().toLowerCase(),operationsExt=operationsFile?.name.split('.').pop().toLowerCase();
+  if(ext!=='xlsx'||operationsExt!=='xlsx') throw new Error('Pour O’Tacos, fournissez les deux fichiers Excel bruts : « Taxes » et « Opérations quotidiennes ».');
+  const [rows,operationsRows]=await Promise.all([parseXlsx(file),parseXlsx(operationsFile)]);
+  // Les rapports bruts de caisse incluent Uber Eats et Deliveroo. Ces deux canaux
+  // sont comptabilisés séparément : Uber depuis son export détaillé, Deliveroo
+  // manuellement hors de cet outil. Ils sont donc tous deux retirés de la ligne
+  // 10 % à emporter avant de générer l'écriture de caisse.
   const num=v=>typeof v==='number'?v:0;
   const found={};
-  rows.forEach(r=>{const label=normalize(r&&r[0]);if(label.indexOf('t v a')===0) found[label]={ht:num(r[4]),tax:num(r[2])}});
-  const sp55=found['t v a 5 5 sp'],ae55=found['t v a 5 5 ae'],sp10=found['t v a 10 sp'],ae10=found['t v a 10 ae'];
-  if(!sp55||!ae55||!sp10||!ae10) throw new Error("Les lignes TVA 5,5 % et 10 % (SP/AE) n'ont pas toutes été trouvées dans le rapport de caisse.");
-  const total=round(sp55.ht+sp55.tax+ae55.ht+ae55.tax+sp10.ht+sp10.tax+ae10.ht+ae10.tax);
-  const dateRow=rows.find(r=>normalize(r&&r[0])==='dates d operation');
-  let period='';
-  if(dateRow){const m=String(dateRow[1]||'').match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})\s*-/);if(m)period=`${m[3].length===2?'20'+m[3]:m[3]}-${m[2].padStart(2,'0')}`}
-  return {sp55,ae55,sp10,ae10,total,period,kind:'otacos-taxes'};
+  rows.forEach(r=>{const label=normalize(r&&r[0]);if(label.indexOf('t v a')===0) found[label]={ttc:num(r[1]),ht:num(r[4]),tax:num(r[2])}});
+  const sp55=found['t v a 5 5 sp'],ae55=found['t v a 5 5 ae'],sp10=found['t v a 10 sp'],rawAe10=found['t v a 10 ae'];
+  if(!sp55||!ae55||!sp10||!rawAe10) throw new Error("Les lignes TVA 5,5 % et 10 % (SP/AE) n'ont pas toutes été trouvées dans le fichier Taxes.");
+  const rawTotal=round(sp55.ttc+ae55.ttc+sp10.ttc+rawAe10.ttc);
+  const operationHt=operationsRows.find(r=>normalize(r&&r[0])==='ventes nettes de tva'),operationTax=operationsRows.find(r=>normalize(r&&r[0])==='taxes recouvrees');
+  if(!operationHt||!operationTax) throw new Error('Les totaux « Ventes nettes de TVA » et « Taxes recouvrées » sont introuvables dans les Opérations quotidiennes.');
+  const operationsTotal=round(num(operationHt[1])+num(operationTax[1])),deliverooRow=operationsRows.find(r=>normalize(r&&r[0])==='deliveroo');
+  if(Math.abs(rawTotal-operationsTotal)>.02) throw new Error(`Les rapports Taxes et Opérations quotidiennes ne concordent pas (${money.format(rawTotal)} contre ${money.format(operationsTotal)} TTC).`);
+  if(!deliverooRow) throw new Error('La ligne « Deliveroo » est introuvable dans les Opérations quotidiennes.');
+  const uberTtc=round(uberRevenue);
+  const deliverooTtc=round(num(deliverooRow[1])*1.10),platformsTtc=round(uberTtc+deliverooTtc);
+  if(uberTtc<0||platformsTtc>rawAe10.ttc+.02) throw new Error(`Uber et Deliveroo (${money.format(platformsTtc)}) ne peuvent pas être retirés de la ligne 10 % à emporter (${money.format(rawAe10.ttc)}).`);
+  const ae10Ttc=round(rawAe10.ttc-platformsTtc),ae10={ttc:ae10Ttc,ht:round(ae10Ttc/1.10),tax:round(ae10Ttc-round(ae10Ttc/1.10))};
+  const total=round(sp55.ttc+ae55.ttc+sp10.ttc+ae10.ttc);
+  const extractPeriod=sourceRows=>{const row=sourceRows.find(r=>normalize(r&&r[0])==='dates d operation'),m=row&&String(row[1]||'').match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})\s*-/);return m?`${m[3].length===2?'20'+m[3]:m[3]}-${m[2].padStart(2,'0')}`:''};
+  const period=extractPeriod(rows),operationsPeriod=extractPeriod(operationsRows);
+  if(!period||!operationsPeriod||period!==operationsPeriod) throw new Error(`Les périodes Taxes et Opérations quotidiennes ne concordent pas (${period||'inconnue'} contre ${operationsPeriod||'inconnue'}).`);
+  return {sp55,ae55,sp10,ae10,total,period,rawTotal,operationsTotal,uberExcluded:uberTtc,deliverooExcluded:deliverooTtc,kind:'otacos-taxes'};
 }
 async function parseCashDoz(file){
   const ext=file.name.split('.').pop().toLowerCase();
@@ -293,8 +293,8 @@ function buildRows(uber,cash){
 $('#process').addEventListener('click',async()=>{
   const btn=$('#process');btn.disabled=true;btn.querySelector('span').textContent="Génération de l'aperçu…";const errors=[];resetPennylanePanel();
   try{
-    if(!$('#period').value)throw new Error('Sélectionnez une période.');if(state.files.uber.size>25e6||(state.files.cash&&state.files.cash.size>25e6))throw new Error('Un fichier dépasse la limite de 25 Mo.');
-    const uber=await parseUber(state.files.uber),cash=profile.mode==='uber-and-cash'?await parseCash(state.files.cash):null,built=buildRows(uber,cash);state.rows=built.rows;
+    if(!$('#period').value)throw new Error('Sélectionnez une période.');if(state.files.uber.size>25e6||(state.files.cash&&state.files.cash.size>25e6)||(state.files.operations&&state.files.operations.size>25e6))throw new Error('Un fichier dépasse la limite de 25 Mo.');
+    const uber=await parseUber(state.files.uber),uberRevenue=round(uber.sales+uber.refund+uber.promo),cash=profile.mode==='uber-and-cash'?await parseCash(state.files.cash,state.files.operations,uberRevenue):null,built=buildRows(uber,cash);state.rows=built.rows;
     const debit=round(state.rows.reduce((s,r)=>s+(r.debit||0),0)),credit=round(state.rows.reduce((s,r)=>s+(r.credit||0),0)),diff=round(debit-credit);
     const selected=$('#period').value;
     if(uber.periods.length!==1||uber.periods[0]!==selected)errors.push(`La période Uber détectée (${uber.periods.join(', ')||'inconnue'}) ne correspond pas à ${selected}.`);
@@ -304,7 +304,7 @@ $('#process').addEventListener('click',async()=>{
     if(Math.abs(round(uber.total-(uber.payouts.reduce((s,[,v])=>s+v,0))))>.01)errors.push('Le total Uber ne correspond pas à la somme des versements.');
     if(cash&&cash.kind!=='otacos-taxes'&&cash.kind!=='doz-taxes'){if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');if(Math.abs(round((cash.solid.ht+cash.solid.vat)-cash.solid.ttc))>.02)errors.push('La ligne caisse Solide ne se recalcule pas.');if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');if(cash.declaredTotal!=null&&Math.abs(round(cash.total-cash.declaredTotal))>.02)errors.push(`Le total des trois lignes caisse (${money.format(cash.total)}) ne correspond pas au total TTC du PDF (${money.format(cash.declaredTotal)}).`)}
     renderResults(uber,cash,built,debit,credit,errors);
-  }catch(e){errors.push(e.message||'Erreur inconnue.');renderErrors(errors)}finally{btn.querySelector('span').textContent="Générer l'aperçu";btn.disabled=!(state.files.uber&&(profile.mode==='uber-only'||state.files.cash))}
+  }catch(e){errors.push(e.message||'Erreur inconnue.');renderErrors(errors)}finally{btn.querySelector('span').textContent="Générer l'aperçu";btn.disabled=!(state.files.uber&&(profile.mode==='uber-only'||(state.files.cash&&(profile.cashAdapter!=='otacos-taxes'||state.files.operations))))}
 });
 function renderResults(uber,cash,built,debit,credit,errors){
   $('#results').hidden=false;$('#result-period').textContent=`${profile.name} · ${periodInfo().label}`;$('#cash-kpi').hidden=!cash;if(cash){$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=cash.kind==='otacos-taxes'?`HT ${money.format(cash.sp55.ht+cash.ae55.ht+cash.sp10.ht+cash.ae10.ht)} · TVA ${money.format(cash.sp55.tax+cash.ae55.tax+cash.sp10.tax+cash.ae10.tax)}`:cash.kind==='doz-taxes'?`HT ${money.format(cash.ht55+cash.ht10)} · TVA ${money.format(cash.vat55+cash.vat10)}`:`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`};$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
@@ -312,7 +312,7 @@ function renderResults(uber,cash,built,debit,credit,errors){
   if(profile.vatBreakdown==='5.5-and-10')checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % : ${money.format(Math.abs(uber.vat2))}`]);
   if(profile.vatBreakdown==='otacos-5.5-and-10'){const vat20=Math.abs(uber.vat3||0);checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat1)-vat20))}`+(vat20>.004?` · 20 % : ${money.format(vat20)}`:'')]);}
   if(profile.vatBreakdown==='doz-5.5-and-10')checks.push(['TVA Uber ventilée',`10 % : ${money.format(Math.abs(uber.vat2))} · 5,5 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat2)))}`]);
-  if(cash&&cash.kind==='otacos-taxes'){checks.push(['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55.ht+cash.ae55.ht)} HT · TVA ${money.format(cash.sp55.tax+cash.ae55.tax)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10.ht+cash.ae10.ht)} HT · TVA ${money.format(cash.sp10.tax+cash.ae10.tax)}`],['Total caisse (hors plateformes de livraison)',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
+  if(cash&&cash.kind==='otacos-taxes'){checks.push(['Taxes et opérations quotidiennes rapprochées',`${money.format(cash.rawTotal)} TTC`],['Uber retiré de la caisse',money.format(cash.uberExcluded)],['Deliveroo retiré de la caisse',money.format(cash.deliverooExcluded)],['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55.ht+cash.ae55.ht)} HT · TVA ${money.format(cash.sp55.tax+cash.ae55.tax)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10.ht+cash.ae10.ht)} HT · TVA ${money.format(cash.sp10.tax+cash.ae10.tax)}`],['Total caisse hors Uber et Deliveroo',money.format(cash.total)]);}
   else if(cash&&cash.kind==='doz-taxes'){checks.push(['Caisse - 5,5 %',`${money.format(cash.ht55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 %',`${money.format(cash.ht10)} HT · TVA ${money.format(cash.vat10)}`],['Total caisse (hors plateformes de livraison)',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
   else if(cash)checks.push(['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`]);
   checks.push(['TVA recalculée',profile.vatBreakdown==='5.5-and-10'?'Uber 5,5 % / 10 % · Frais 20 %':'Uber 10 % · Frais 20 %'],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]);

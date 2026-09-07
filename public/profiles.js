@@ -1,11 +1,10 @@
 // Profil générique O'Tacos : Uber seul, TVA 5,5 % et 10 %, comptes propres à
 // chaque société. Voir la formule dans app.js (vatBreakdown 'otacos-5.5-and-10'),
 // validée cellule par cellule sur le modèle HAGTACOS de juillet 2026.
-// `cashAccounts`, quand fourni, active le mode caisse (rapport POS "Reports" avec
-// TVA 5,5 %/10 % x SP/AE — voir cashAdapter 'otacos-taxes' dans app.js), validé
-// cellule par cellule contre l'écriture RÉELLEMENT postée dans Pennylane pour
-// 8 sociétés en juillet 2026 (toutes sauf VINIOS, dont le rapport n'a pas le
-// second tableau "hors plateformes" nécessaire — reste en Uber seul pour l'instant).
+// `cashAccounts`, quand fourni, active le mode caisse O'Tacos (exports bruts
+// « Taxes » et « Opérations quotidiennes » : TVA 5,5 %/10 % x SP/AE). L'outil
+// retire Uber depuis son export détaillé et Deliveroo depuis les opérations avant
+// de générer la caisse ; voir cashAdapter 'otacos-taxes' dans app.js.
 function otacosProfile({ id, name, label, establishmentId, accounts, cashAccounts }) {
   return {
     id,
