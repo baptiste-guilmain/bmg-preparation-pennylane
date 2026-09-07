@@ -113,7 +113,8 @@ function dateValue(v){
   if(v&&typeof v==='object'&&'excel' in v)return frDate(excelDate(v.excel));
   if(v instanceof Date)return frDate(v);
   if(typeof v==='number'&&v>30000)return frDate(excelDate(v));
-  const s=String(v); const m=s.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);return m?`${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3].length===2?'20'+m[3]:m[3]}`:'';
+  const s=String(v),iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s|T|$)/);if(iso)return `${iso[3].padStart(2,'0')}/${iso[2].padStart(2,'0')}/${iso[1]}`;
+  const m=s.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);return m?`${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3].length===2?'20'+m[3]:m[3]}`:'';
 }
 function excelDate(v){return new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000)}
 function frDate(d){return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`}
