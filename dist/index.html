@@ -78,6 +78,15 @@
       </div>
       <div id="error-log" class="error-log" hidden><h3>Journal des erreurs</h3><ul></ul></div>
       <div class="download-bar"><div><strong id="download-status">Validation requise</strong><small id="download-help">Vérifiez les contrôles avant de générer le fichier.</small></div><button id="download" disabled>Télécharger le fichier Pennylane</button></div>
+      <div id="pennylane-bar" class="pennylane-bar panel">
+        <div class="pennylane-head"><h3>Envoi direct à Pennylane <span class="beta-tag">bêta</span></h3><span id="pennylane-status">Aucun aperçu généré</span></div>
+        <p class="pennylane-note">Étape 1 : générez un aperçu (lecture seule, n'écrit rien). Étape 2 : vérifiez les comptes et montants, puis confirmez l'envoi — cette action crée réellement l'écriture dans Pennylane et n'est pas réversible depuis cet outil.</p>
+        <div id="pennylane-preview" class="pennylane-preview" hidden></div>
+        <div class="pennylane-actions">
+          <button id="pennylane-preview-btn" disabled>Générer l'aperçu</button>
+          <button id="pennylane-send-btn" disabled>Confirmer et envoyer à Pennylane</button>
+        </div>
+      </div>
     </section>
   </main>
   <footer><span>BMG · Outil interne</span><span>Paradis du Fruit, Crousty Game, O'Tacos (10 sociétés), DOZ (2 sociétés), IT TRATTORIA · comptes à valider par l'expert-comptable chaque mois</span></footer>

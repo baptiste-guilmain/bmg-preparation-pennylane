@@ -10,6 +10,7 @@ const normalize = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]
 
 let profile = getProfile('strasgame');
 let state={files:{uber:null,cash:null}, rows:[], allShown:false, valid:false};
+let pennylanePayload=null;
 
 function bindFile(inputSel,zoneSel,key){
   const input=$(inputSel), zone=$(zoneSel);
@@ -48,7 +49,7 @@ function setProfile(id){
   $('#uber-help').textContent=`Excel ou CSV · obligatoire pour ${profile.name}`;
   $('#cash-help').textContent=otacosCash?`Excel (.xlsx) · obligatoire pour ${profile.name}`:`PDF, Excel ou CSV · obligatoire pour ${profile.name}`;
   $('#cash-zone em').textContent=otacosCash?"Le rapport de taxes du logiciel de caisse (export Excel, feuille « Reports »), pour le mois concerné":"Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)";
-  $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight();
+  $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight(); resetPennylanePanel();
 }
 $('#company').addEventListener('change',e=>setProfile(e.target.value));
 setProfile('strasgame');
@@ -252,7 +253,7 @@ function buildRows(uber,cash){
 }
 
 $('#process').addEventListener('click',async()=>{
-  const btn=$('#process');btn.disabled=true;btn.querySelector('span').textContent="Création de l'écriture…";const errors=[];
+  const btn=$('#process');btn.disabled=true;btn.querySelector('span').textContent="Création de l'écriture…";const errors=[];resetPennylanePanel();
   try{
     if(!$('#period').value)throw new Error('Sélectionnez une période.');if(state.files.uber.size>25e6||(state.files.cash&&state.files.cash.size>25e6))throw new Error('Un fichier dépasse la limite de 25 Mo.');
     const uber=await parseUber(state.files.uber),cash=profile.mode==='uber-and-cash'?await parseCash(state.files.cash):null,built=buildRows(uber,cash);state.rows=built.rows;
@@ -277,12 +278,73 @@ function renderResults(uber,cash,built,debit,credit,errors){
   else if(cash)checks.push(['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`]);
   checks.push(['TVA recalculée',profile.vatBreakdown==='5.5-and-10'?'Uber 5,5 % / 10 % · Frais 20 %':'Uber 10 % · Frais 20 %'],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]);
   $('#check-list').innerHTML=checks.map(x=>`<div class="check-row"><b>✓</b><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');$('#check-badge').textContent=errors.length?'À corriger':`${checks.length} contrôles validés`;state.valid=!errors.length;renderRows();renderErrors(errors);$('#download').disabled=!state.valid;$('#download-status').textContent=state.valid?'Fichier validé et prêt':'Génération bloquée';$('#download-help').textContent=state.valid?`${state.rows.length} lignes comptables · format Excel Pennylane`:'Corrigez les erreurs signalées puis relancez le traitement.';setStep(state.valid?4:3);$('#results').scrollIntoView({behavior:'smooth',block:'start'});
+  $('#pennylane-preview-btn').disabled=!state.valid;
 }
 function renderRows(){const shown=state.allShown?state.rows:state.rows.slice(0,8);$('#rows').innerHTML=shown.map(r=>`<tr><td>${r.date}</td><td>${r.journal||'—'}</td><td>${r.account}</td><td>${esc(r.label)}</td><td class="num">${r.debit!=null?money.format(r.debit):'—'}</td><td class="num">${r.credit!=null?money.format(r.credit):'—'}</td></tr>`).join('');$('#toggle-rows').textContent=state.allShown?'Réduire':`Afficher les ${state.rows.length} lignes`}
 $('#toggle-rows').addEventListener('click',()=>{state.allShown=!state.allShown;renderRows()});
 function renderErrors(errors){const box=$('#error-log');box.hidden=!errors.length;box.querySelector('ul').innerHTML=errors.map(e=>`<li>${esc(e)}</li>`).join('');if(errors.length){$('#results').hidden=false;$('#download').disabled=true}}
 
 $('#download').addEventListener('click',async()=>{if(!state.valid)return;const blob=await makeXlsx(state.rows);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${profile.name}_CA_UBER_${$('#period').value.replace('-','_')}_Pennylane.xlsx`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+
+// Envoi direct à Pennylane (bêta) : le navigateur ne voit jamais les jetons API,
+// tout passe par des fonctions Netlify côté serveur (netlify/functions/). Un
+// aperçu (lecture seule) est obligatoire avant tout envoi réel, et toute
+// régénération de l'écriture (nouveau traitement, changement de société) annule
+// l'aperçu en cours pour éviter d'envoyer des données périmées.
+function resetPennylanePanel(){
+  pennylanePayload=null;
+  const box=$('#pennylane-preview');box.hidden=true;box.innerHTML='';
+  $('#pennylane-send-btn').disabled=true;
+  $('#pennylane-status').textContent='Aucun aperçu généré';
+}
+function groupRowsForPennylane(){
+  const groups=new Map();
+  state.rows.forEach(r=>{const key=r.label.indexOf('RECETTES')===0?'RECETTES':'UBEREATS';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r)});
+  const p=periodInfo(),isoDate=p.last.toISOString().slice(0,10);
+  return [...groups.entries()].map(([key,lines])=>({
+    label:`${key} ${p.label}`,date:isoDate,journalCode:'VT',
+    lines:lines.map(l=>({accountNumber:l.account,debit:l.debit,credit:l.credit,label:l.label}))
+  }));
+}
+function renderPennylanePreview(preview){
+  const box=$('#pennylane-preview');box.hidden=false;
+  box.innerHTML=preview.map(e=>{
+    const rows=e.lines.map(l=>`<tr><td>${esc(l.accountNumber)}</td><td>${esc(l.accountLabel||'')}</td><td>${esc(l.label)}</td><td class="num">${l.debit!=='0.00'?money.format(+l.debit):'—'}</td><td class="num">${l.credit!=='0.00'?money.format(+l.credit):'—'}</td></tr>`).join('');
+    return `<div class="entry-title">${esc(e.label)} · débit ${money.format(e.debitTotal)} = crédit ${money.format(e.creditTotal)}</div><table><thead><tr><th>Compte</th><th>Libellé compte</th><th>Libellé ligne</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+}
+$('#pennylane-preview-btn').addEventListener('click',async()=>{
+  if(!state.valid)return;
+  const btn=$('#pennylane-preview-btn'),prev=btn.textContent;btn.disabled=true;btn.textContent="Génération de l'aperçu…";$('#pennylane-status').textContent='';
+  try{
+    const entries=groupRowsForPennylane();
+    const resp=await fetch('/.netlify/functions/pennylane-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({companyId:profile.id,entries})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error||`Erreur ${resp.status}`);
+    pennylanePayload={companyId:profile.id,entries};
+    renderPennylanePreview(data.preview);
+    $('#pennylane-send-btn').disabled=false;
+    $('#pennylane-status').textContent='Aperçu généré — vérifiez les comptes et montants avant de confirmer.';
+  }catch(e){
+    resetPennylanePanel();
+    $('#pennylane-status').textContent=`Erreur : ${e.message}`;
+  }finally{btn.disabled=!state.valid;btn.textContent=prev}
+});
+$('#pennylane-send-btn').addEventListener('click',async()=>{
+  if(!pennylanePayload)return;
+  if(!confirm(`Confirmer l'envoi réel de ${pennylanePayload.entries.length} écriture(s) dans Pennylane pour ${profile.name} ? Cette action crée l'écriture directement et n'est pas réversible depuis cet outil.`))return;
+  const btn=$('#pennylane-send-btn'),prev=btn.textContent;btn.disabled=true;btn.textContent='Envoi en cours…';
+  try{
+    const resp=await fetch('/.netlify/functions/pennylane-post',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...pennylanePayload,confirm:true})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error||`Erreur ${resp.status}`);
+    $('#pennylane-status').textContent=`${data.created.length} écriture(s) créée(s) dans Pennylane.`;
+    $('#pennylane-preview-btn').disabled=true;pennylanePayload=null;btn.disabled=true;
+  }catch(e){
+    $('#pennylane-status').textContent=`Échec de l'envoi : ${e.message}`;
+    btn.disabled=false;
+  }finally{btn.textContent=prev}
+});
 async function makeXlsx(rows){
   const headers=['Date','Code Journal','Numéro de compte','Libellé de compte','Libellé de ligne','Taux de TVA du compte','Code pays du compte','Débit et/ou Crédit','Crédit'];const data=[headers,...rows.map(r=>[r.date,r.journal,r.account,r.accountLabel,r.label,r.vat??'', '',r.debit??'',r.credit??''])];
   const cell=(v,ref,row,col)=>{if(row&&col===0)return `<c r="${ref}" s="4"><v>${excelSerialFromFr(v)}</v></c>`;if(typeof v==='number')return `<c r="${ref}" s="${row?2:0}"><v>${v}</v></c>`;return `<c r="${ref}" t="inlineStr" s="${row?1:3}"><is><t>${xmlEsc(v)}</t></is></c>`};

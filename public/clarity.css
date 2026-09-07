@@ -32,3 +32,26 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 /* État "prêt" plus visible sur la puce de statut, sans dépendre uniquement de la couleur. */
 .status-dot{transition:background .2s,border-color .2s,transform .2s}
 .status-dot.ready{transform:scale(1.15)}
+
+/* Envoi direct à Pennylane : encart distinct du téléchargement Excel, couleur
+   ambre pour signaler que c'est une action d'écriture réelle (pas juste un
+   export), avec un aperçu obligatoire avant tout envoi. */
+.pennylane-bar{margin-top:16px;padding:20px 24px;border-color:#e8d9b8;background:#fffaf0}
+.pennylane-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.pennylane-head h3{margin:0;font-size:14px;display:flex;align-items:center;gap:8px}
+.beta-tag{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--amber);background:#f7ecd6;border-radius:99px;padding:3px 8px}
+#pennylane-status{font-size:12px;color:var(--muted)}
+.pennylane-note{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0}
+.pennylane-preview{margin:14px 0;border:1px solid #edf0ee;border-radius:10px;overflow:hidden}
+.pennylane-preview table{width:100%;border-collapse:collapse;font-size:11px}
+.pennylane-preview th{text-align:left;color:#75807c;font-weight:600;background:#f6f8f6;padding:8px}
+.pennylane-preview td{padding:8px;border-bottom:1px solid #edf0ee}
+.pennylane-preview .entry-title{padding:9px 8px;font-weight:700;background:#f2ecdd;font-size:12px}
+.pennylane-preview .num{text-align:right;font-variant-numeric:tabular-nums}
+.pennylane-actions{display:flex;gap:10px}
+.pennylane-actions button{border:0;border-radius:9px;height:44px;padding:0 18px;font-weight:700;cursor:pointer}
+#pennylane-preview-btn{background:#fff;border:1px solid #d9c79a;color:#7a5a12}
+#pennylane-preview-btn:not(:disabled):hover{background:#fbf3e0}
+#pennylane-send-btn{background:var(--amber);color:#fff}
+#pennylane-send-btn:not(:disabled):hover{background:#8a5510}
+.pennylane-actions button:disabled{background:#e8e8e5;color:#9a9a96;border:0;cursor:not-allowed}
