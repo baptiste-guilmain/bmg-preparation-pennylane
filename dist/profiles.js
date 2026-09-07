@@ -99,16 +99,19 @@ export const profiles = {
     // sur le tableur de travail de l'expert-comptable : celui-ci notait
     // 44571100/44571500/44566020, mais Pennylane a en réalité utilisé les
     // comptes génériques 44571008/44571006/44566 ci-dessous.
+    // Numéros re-corrigés le 7 sept. 2026 (retrait des zéros de padding qui ne
+    // correspondaient pas au numéro RÉEL stocké côté Pennylane — l'import Excel
+    // manuel tolérait l'écart, l'écriture directe par API ne le tolère pas).
     accounts: {
-      uberSales55: ['70113500', 'VENTES 5,5% UBEREATS'],
+      uberSales55: ['701135', 'VENTES 5,5% UBEREATS'],
       vat55: ['44571006', 'TVA collectée à 5,5%'],
-      uberSales10: ['70112100', 'VENTES 10% UBEREATS'],
+      uberSales10: ['701121', 'VENTES 10% UBEREATS'],
       vat10: ['44571008', 'TVA collectée à 10%'],
-      commission: ['62220000', 'COMMISSIONS UBEREATS'],
+      commission: ['6222', 'COMMISSIONS UBEREATS'],
       deductibleVat: ['44566', 'TVA sur autres biens et services'],
-      marketing: ['62320400', 'DEPENSES MARKETING UBEREATS'],
-      mealVoucher: ['58000400', 'VERSEMENT TR'],
-      uberSettlement: ['58000600', 'UBEREAT']
+      marketing: ['623204', 'DEPENSES MARKETING UBEREATS'],
+      mealVoucher: ['580004', 'VERSEMENT TR'],
+      uberSettlement: ['580006', 'UBEREAT']
     },
     // Caisse (rapport POS "Reports", table hors plateformes) : comptes confirmés
     // le 7 sept. 2026 contre l'écriture RÉELLEMENT postée dans Pennylane de
@@ -127,16 +130,18 @@ export const profiles = {
     name: 'COLMIOS',
     label: "O'Tacos Colmar",
     establishmentId: '401010401',
+    // Numéros re-corrigés le 7 sept. 2026 (mêmes zéros de padding erronés que sur
+    // HAGTACOS, retirés après nouveau croisement avec l'écriture réelle de juillet).
     accounts: {
-      uberSales55: ['70113500', 'VENTES 5,5% UBEREATS'],
+      uberSales55: ['701135', 'VENTES 5,5% UBEREATS'],
       vat55: ['44571006', 'TVA collectée à 5,5%'],
-      uberSales10: ['70113000', 'VENTES 10% UBEREATS'],
+      uberSales10: ['70113', 'VENTES 10% UBEREATS'],
       vat10: ['44571008', 'TVA collectée à 10%'],
-      commission: ['62220000', 'COMMISSIONS UBEREATS'],
-      deductibleVat: ['44566000', 'TVA sur autres biens et services'],
-      marketing: ['62320500', 'DEPENSES MARKETING UBEREATS'],
-      mealVoucher: ['58000400', 'VERSEMENT TR'],
-      uberSettlement: ['58000600', 'UBEREAT']
+      commission: ['6222', 'COMMISSIONS UBEREATS'],
+      deductibleVat: ['44566', 'TVA sur autres biens et services'],
+      marketing: ['623205', 'DEPENSES MARKETING UBEREATS'],
+      mealVoucher: ['580004', 'VERSEMENT TR'],
+      uberSettlement: ['580006', 'UBEREAT']
     },
     // Caisse : comptes confirmés le 7 sept. 2026 contre l'écriture réelle de
     // juillet 2026 (exacts au centime).
@@ -248,15 +253,15 @@ export const profiles = {
     label: 'DOZ Colmar',
     establishmentId: '6a09a19a61bc6e0023ac2480',
     accounts: {
-      uberSales55: ['70114000', 'VENTES 5,5% UBEREATS'],
+      uberSales55: ['70114', 'VENTES 5,5% UBEREATS'],
       vat55: ['44571006', 'TVA collectée à 5,5%'],
-      uberSales10: ['70113000', 'VENTES 10% UBEREATS'],
+      uberSales10: ['70113', 'VENTES 10% UBEREATS'],
       vat10: ['44571008', 'TVA collectée à 10%'],
       commission: ['62222', 'COMMISSIONS UBEREATS'],
       deductibleVat: ['44566', 'TVA sur autres biens et services'],
       marketing: ['623204', 'DEPENSES MARKETING UBEREATS'],
-      mealVoucher: ['58000400', 'VERSEMENT TR'],
-      uberSettlement: ['58000600', 'UBEREAT']
+      mealVoucher: ['580004', 'VERSEMENT TR'],
+      uberSettlement: ['580006', 'UBEREAT']
     }
   }),
   // DOZ - Strasbourg : formule et comptes confirmés le 7 sept. 2026 contre
