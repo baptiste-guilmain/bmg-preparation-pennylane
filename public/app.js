@@ -57,7 +57,14 @@ setProfile('strasgame');
 async function parseUber(file){
   const ext=file.name.split('.').pop().toLowerCase();
   let records;
-  if(ext==='csv') records=parseDelimited(await file.text());
+  if(ext==='csv'){
+    const buffer=await file.arrayBuffer();let text=new TextDecoder('utf-8').decode(buffer);
+    // Les exports Uber français sont parfois encodés en Windows-1252. Une
+    // seconde lecture évite que « rétrofacturation » ou « marché » deviennent
+    // illisibles et que des colonnes comptables soient alors ignorées.
+    if(text.includes('\uFFFD')) text=new TextDecoder('windows-1252').decode(buffer);
+    records=parseDelimited(text);
+  }
   else if(ext==='xlsx') records=await parseXlsx(file);
   else throw new Error("Le fichier Uber doit être un Excel (.xlsx) ou un CSV.");
   const headerIndex=records.findIndex(r=>r.some(v=>normalize(v)==='id de la commande'));
@@ -173,9 +180,8 @@ async function parseCashOtacos(file,operationsFile,uberRevenue){
   if(!operationHt||!operationTax) throw new Error('Les totaux « Ventes nettes de TVA » et « Taxes recouvrées » sont introuvables dans les Opérations quotidiennes.');
   const operationsTotal=round(num(operationHt[1])+num(operationTax[1])),deliverooRow=operationsRows.find(r=>normalize(r&&r[0])==='deliveroo');
   if(Math.abs(rawTotal-operationsTotal)>.02) throw new Error(`Les rapports Taxes et Opérations quotidiennes ne concordent pas (${money.format(rawTotal)} contre ${money.format(operationsTotal)} TTC).`);
-  if(!deliverooRow) throw new Error('La ligne « Deliveroo » est introuvable dans les Opérations quotidiennes.');
   const uberTtc=round(uberRevenue);
-  const deliverooTtc=round(num(deliverooRow[1])*1.10),platformsTtc=round(uberTtc+deliverooTtc);
+  const deliverooTtc=deliverooRow?round(num(deliverooRow[1])*1.10):0,platformsTtc=round(uberTtc+deliverooTtc);
   if(uberTtc<0||platformsTtc>rawAe10.ttc+.02) throw new Error(`Uber et Deliveroo (${money.format(platformsTtc)}) ne peuvent pas être retirés de la ligne 10 % à emporter (${money.format(rawAe10.ttc)}).`);
   const ae10Ttc=round(rawAe10.ttc-platformsTtc),ae10={ttc:ae10Ttc,ht:round(ae10Ttc/1.10),tax:round(ae10Ttc-round(ae10Ttc/1.10))};
   const total=round(sp55.ttc+ae55.ttc+sp10.ttc+ae10.ttc);
