@@ -27,18 +27,25 @@ function otacosProfile({ id, name, label, establishmentId, accounts, cashAccount
 // séparé des frais d'offre Uber (repris tels quels, sans re-répartition à 20 %).
 // Voir la formule dans app.js (vatBreakdown 'doz-5.5-and-10', marketingSplit),
 // validée cellule par cellule sur le modèle DOZ - Colmar de juillet 2026.
-function dozProfile({ id, name, label, establishmentId, accounts }) {
+// `cashAccounts`, quand fourni, active le mode caisse (rapport POS à onglets
+// "Revenus - Indicateurs" / "TVA - Répartition du montant de" / "TVA - TVA par
+// taux" — voir cashAdapter 'doz-taxes' dans app.js, pas de découpage sur
+// place/à emporter chez DOZ, juste 2 taux), validé cellule par cellule contre
+// l'écriture RÉELLEMENT postée dans Pennylane pour COLMARDOZ et STRASDOZ en
+// juillet 2026.
+function dozProfile({ id, name, label, establishmentId, accounts, cashAccounts }) {
   return {
     id,
     name,
     label,
-    mode: 'uber-only',
+    mode: cashAccounts ? 'uber-and-cash' : 'uber-only',
+    cashAdapter: cashAccounts ? 'doz-taxes' : undefined,
     uberJournal: '',
     vatBreakdown: 'doz-5.5-and-10',
     marketingSplit: true,
     expenseVat: 0.20,
     uberEstablishments: establishmentId ? [establishmentId] : [],
-    accounts
+    accounts: cashAccounts ? { ...accounts, ...cashAccounts } : accounts
   };
 }
 
@@ -267,6 +274,14 @@ export const profiles = {
       marketing: ['623204', 'DEPENSES MARKETING UBEREATS'],
       mealVoucher: ['580004', 'VERSEMENT TR'],
       uberSettlement: ['580006', 'UBEREAT']
+    },
+    // Caisse : comptes confirmés le 7 sept. 2026 contre l'écriture "RECETTES
+    // 07.2026" réellement postée dans Pennylane (trouvée avec des libellés de
+    // ligne vides — seul le libellé d'écriture est renseigné), exacts au centime.
+    cashAccounts: {
+      salesHt55: ['7010255', 'VENTES 5,5% CAISSE'],
+      salesHt10: ['701021', 'VENTES 10% CAISSE'],
+      cash: ['530', 'CAISSE']
     }
   }),
   // DOZ - Strasbourg : formule et comptes confirmés le 7 sept. 2026 contre
@@ -287,6 +302,14 @@ export const profiles = {
       marketing: ['6232041', 'DEPENSES MARKETING UBEREATS'],
       mealVoucher: ['5800042', 'VERSEMENT TR'],
       uberSettlement: ['58000602', 'UBEREAT']
+    },
+    // Caisse : comptes confirmés le 7 sept. 2026 contre l'écriture "RECETTES
+    // 07.2026" réellement postée (mêmes comptes 7010255/701021/530 que
+    // COLMARDOZ — cohérent, "idem à COLMARDOZ" comme annoncé par Baptiste).
+    cashAccounts: {
+      salesHt55: ['7010255', 'VENTES 5,5% CAISSE'],
+      salesHt10: ['701021', 'VENTES 10% CAISSE'],
+      cash: ['530', 'CAISSE']
     }
   })
 };
