@@ -179,9 +179,23 @@ export const profiles = {
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
   } }),
-  // DOZ - Colmar : comptes et formule confirmés le 4 sept. 2026 en reconstituant
-  // exactement les lignes de synthèse du modèle de juillet 2026 (fourni par
-  // Baptiste avec entrée ET sortie attendues), vérifiés à 10 décimales près.
+  // ALDN — enseigne IT TRATTORIA (pas O'Tacos, mais même moteur Uber/TVA que la
+  // famille O'Tacos). Seule société avec une part de ventes Uber à 20 % (alcool,
+  // colonne Uber "TVA 3 sur les ventes") : comptes uberSales20/vat20 dédiés.
+  // Formule et TOUS les comptes confirmés le 7 sept. 2026 contre l'écriture
+  // RÉELLEMENT postée dans Pennylane de juillet 2026 (API), exacts au centime près.
+  aldn: otacosProfile({ id: 'aldn', name: 'ALDN', label: 'IT TRATTORIA', establishmentId: '', accounts: {
+    uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
+    uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
+    uberSales20: ['70116', 'VENTES UBEREATS 20%'], vat20: ['44571009', 'TVA collectée à 20%'],
+    commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
+    marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+  } }),
+  // DOZ - Colmar : formule confirmée le 4 sept. 2026 par reconstitution du modèle
+  // de l'expert-comptable, MAIS comptes corrigés le 7 sept. 2026 après croisement
+  // avec l'écriture RÉELLEMENT postée dans Pennylane (API) : le tableur de l'expert
+  // notait 44571500/44571100/62220000/44566020/62320500, Pennylane a en réalité
+  // utilisé 44571006/44571008/62222/44566/623204 ci-dessous — même piège que HAGTACOS.
   colmardoz: dozProfile({
     id: 'colmardoz',
     name: 'COLMARDOZ',
@@ -189,14 +203,34 @@ export const profiles = {
     establishmentId: '6a09a19a61bc6e0023ac2480',
     accounts: {
       uberSales55: ['70114000', 'VENTES 5,5% UBEREATS'],
-      vat55: ['44571500', 'TVA collectée à 5,5%'],
+      vat55: ['44571006', 'TVA collectée à 5,5%'],
       uberSales10: ['70113000', 'VENTES 10% UBEREATS'],
-      vat10: ['44571100', 'TVA collectée à 10%'],
-      commission: ['62220000', 'COMMISSIONS UBEREATS'],
-      deductibleVat: ['44566020', 'TVA sur autres biens et services'],
-      marketing: ['62320500', 'DEPENSES MARKETING UBEREATS'],
+      vat10: ['44571008', 'TVA collectée à 10%'],
+      commission: ['62222', 'COMMISSIONS UBEREATS'],
+      deductibleVat: ['44566', 'TVA sur autres biens et services'],
+      marketing: ['623204', 'DEPENSES MARKETING UBEREATS'],
       mealVoucher: ['58000400', 'VERSEMENT TR'],
       uberSettlement: ['58000600', 'UBEREAT']
+    }
+  }),
+  // DOZ - Strasbourg : formule et comptes confirmés le 7 sept. 2026 contre
+  // l'écriture RÉELLEMENT postée dans Pennylane de juillet 2026 (API), exacts au
+  // centime près sur toutes les lignes.
+  strasdoz: dozProfile({
+    id: 'strasdoz',
+    name: 'STRASDOZ',
+    label: 'DOZ Strasbourg',
+    establishmentId: '6a2bbe3c10196600236e7b2e',
+    accounts: {
+      uberSales55: ['701141', 'VENTES 5,5% UBEREATS'],
+      vat55: ['44571006', 'TVA collectée à 5,5%'],
+      uberSales10: ['70113', 'VENTES 10% UBEREATS'],
+      vat10: ['44571008', 'TVA collectée à 10%'],
+      commission: ['622221', 'COMMISSIONS UBEREATS'],
+      deductibleVat: ['44566', 'TVA sur autres biens et services'],
+      marketing: ['6232041', 'DEPENSES MARKETING UBEREATS'],
+      mealVoucher: ['5800042', 'VERSEMENT TR'],
+      uberSettlement: ['58000602', 'UBEREAT']
     }
   })
 };

@@ -63,6 +63,10 @@ async function parseUber(file){
   const headers=records[headerIndex].map(normalize), rawData=records.slice(headerIndex+1).filter(r=>r.some(v=>v!==''&&v!=null));
   const col=(aliases)=>{for(const a of aliases){const i=headers.findIndex(h=>h===normalize(a)||h.includes(normalize(a)));if(i>=0)return i}return -1};
   const ix={currency:col(['Code de devise']),establishment:col(["Identifiant de l’établissement externe","Identifiant de l'etablissement externe","Identifiant externe du commerce"]),orderDate:col(['Date de la commande']),orderId:col(['Id. de la commande','Id de la commande']),sales:col(['Ventes (TVA incluse)','Total des ventes d articles TVA incluse','Ventes (incluant la TVA)']),refund:col(['Montant de la facturation rétroactive (TVA incluse)','Montant de la facturation retroactive TVA incluse','Montant de la rétrofacturation (TVA comprise)']),promo:col(['Offres sur les articles (TVA incluse)','Promotions du commerçant appliquées aux plats articles TVA incluse','Offres sur des articles (TVA comprise)']),vat1:col(['TVA 1 sur les ventes','TVA 1','Montant TVA 1','TVA 1 (montant)']),vat2:col(['TVA 2 sur les ventes','TVA 2','Montant TVA 2','TVA 2 (montant)']),
+    // "TVA 3 sur les ventes" (20 %) : colonne Uber presente uniquement chez les
+    // etablissements avec de l'alcool au menu (ALDN/IT TRATTORIA, juillet 2026).
+    // Absente => 0, jamais bloquant, comme vat1/vat2.
+    vat3:col(['TVA 3 sur les ventes','TVA 3','Montant TVA 3']),
     // Colonnes de TVA 1/2 séparées sur les ajustements (rétrofacturation) et les
     // offres/rabais : présentes chez certaines sociétés (COLMIOS, DOZ) mais pas
     // d'autres (HAGTACOS, STRASGAME, PDFK). Absentes => 0, jamais bloquant.
@@ -72,7 +76,7 @@ async function parseUber(file){
   // "Titre-restaurant" est absent de l'export Uber quand l'établissement n'accepte
   // pas les titres-restaurant dématérialisés (constaté sur VINIOS, juillet 2026) :
   // colonne optionnelle, jamais bloquante, comme les autres colonnes ci-dessus.
-  const missing=Object.entries(ix).filter(([k,v])=>v<0&&!['offerFee','offerVat','vat1','vat2','vat1Adjustment','vat2Adjustment','vat1Offer','vat2Offer','marketingAdjustment','voucher'].includes(k)).map(([k])=>k);
+  const missing=Object.entries(ix).filter(([k,v])=>v<0&&!['offerFee','offerVat','vat1','vat2','vat3','vat1Adjustment','vat2Adjustment','vat1Offer','vat2Offer','marketingAdjustment','voucher'].includes(k)).map(([k])=>k);
   if(profile.vatBreakdown==='5.5-and-10'&&(ix.vat1<0||ix.vat2<0)) missing.push('TVA 1 / TVA 2');
   if(missing.length) throw new Error(`Export Uber incomplet : ${missing.length} colonne(s) indispensable(s) absente(s).`);
   const data=rawData.filter(r=>normalize(r[ix.currency])==='eur');
@@ -83,6 +87,7 @@ async function parseUber(file){
   const periods=[...new Set(data.map(r=>monthValue(r[ix.orderDate])).filter(Boolean))];
   const vatSum=k=>ix[k]<0?0:sum(k);
   return {sales:sum('sales'),refund:sum('refund'),promo:sum('promo'),
+    vat3:vatSum('vat3'),
     vat1:round(vatSum('vat1')+vatSum('vat1Adjustment')+vatSum('vat1Offer')),
     vat2:round(vatSum('vat2')+vatSum('vat2Adjustment')+vatSum('vat2Offer')),
     offerFee:sum('offerFee'),offerVat:sum('offerVat'),marketingAdjustment:ix.marketingAdjustment<0?0:sum('marketingAdjustment'),voucher:sum('voucher'),commission:sum('commission'),commissionVat:sum('commissionVat'),other:sum('other'),total:sum('total'),payouts:[...payouts].filter(([,v])=>Math.abs(v)>.004),establishments,periods,rowCount:data.length};
@@ -148,12 +153,19 @@ function buildRows(uber,cash){
   let salesHt,salesVat,marketingHt,marketingVat,marketingTtc,rows=[];
   if(profile.vatBreakdown==='5.5-and-10'||profile.vatBreakdown==='otacos-5.5-and-10'||profile.vatBreakdown==='doz-5.5-and-10'){
     const vat55=Math.abs(uber.vat1),vat10raw=Math.abs(uber.vat2);let sales55,ht10,vat10;
+    // Compte Uber optionnel "TVA 3 sur les ventes" (20 %) : present uniquement chez
+    // les etablissements qui vendent de l'alcool via Uber (constate sur ALDN/IT
+    // TRATTORIA, juillet 2026 - PDFK aussi concerne mais pas d'alcool livre via Uber
+    // ce mois-la). Absent ou nul => aucune ligne generee, jamais bloquant. Isolee en
+    // priorite comme la part 5,5 %, avant le calcul du reliquat 10 %.
+    const vat20raw=Math.abs(uber.vat3||0),sales20=vat20raw>.004?vat20raw/.2:0,ttc20=round(sales20*1.2);
     if(profile.vatBreakdown==='otacos-5.5-and-10'){
       // Ventilation validée sur le modèle HAGTACOS de juillet 2026 : la colonne
       // "TVA 2" brute d'Uber ne redonne pas la TVA 10 % réellement due (écarts
       // d'arrondi par commande) ; on isole donc la part 5,5 % via sa propre TVA,
-      // puis la part 10 % par différence sur le total TTC (ventes + rétro + offres).
-      sales55=vat55/.055;const ttc55=sales55*1.055,ttc10=revenue-ttc55;ht10=ttc10/1.10;vat10=ttc10-ht10;
+      // puis la part 10 % par différence sur le total TTC (ventes + rétro + offres),
+      // apres avoir retire la part 20 % le cas echeant.
+      sales55=vat55/.055;const ttc55=sales55*1.055,ttc10=revenue-ttc55-ttc20;ht10=ttc10/1.10;vat10=ttc10-ht10;
     }else if(profile.vatBreakdown==='doz-5.5-and-10'){
       // Ventilation validée sur le modèle DOZ - Colmar de juillet 2026 (méthode
       // inverse de l'otacos) : la part 10 % s'obtient proprement depuis la TVA 2
@@ -167,8 +179,9 @@ function buildRows(uber,cash){
       sales55=round(vat55/.055);ht10=round((revenue-vat55-vat10raw)-sales55);vat10=vat10raw;
     }
     if(profile.vatBreakdown!=='doz-5.5-and-10'){
-      salesHt=round(sales55+ht10);salesVat=round(vat55+vat10);
+      salesHt=round(sales55+ht10+sales20);salesVat=round(vat55+vat10+vat20raw);
       rows=[line(date,journal,a.uberSales55,ul,null,round(sales55),.055),line(date,journal,a.vat55,ul,null,round(vat55)),line(date,journal,a.uberSales10,ul,null,round(ht10),.10),line(date,journal,a.vat10,ul,null,round(vat10))];
+      if(vat20raw>.004) rows.push(line(date,journal,a.uberSales20,ul,null,round(sales20),.20),line(date,journal,a.vat20,ul,null,round(vat20raw)));
     }
     if(profile.marketingSplit){
       // DOZ : les frais d'offre Uber (déjà ventilés HT/TVA par Uber) sont repris
@@ -219,7 +232,7 @@ function renderResults(uber,cash,built,debit,credit,errors){
   $('#results').hidden=false;$('#result-period').textContent=`${profile.name} · ${periodInfo().label}`;$('#cash-kpi').hidden=!cash;if(cash){$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`};$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
   const checks=[['Structure Uber reconnue',`${uber.rowCount} lignes · ${uber.payouts.length} versements`],['Société et période cohérentes',`${uber.establishments.join(', ')} · ${periodInfo().label}`]];
   if(profile.vatBreakdown==='5.5-and-10')checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % : ${money.format(Math.abs(uber.vat2))}`]);
-  if(profile.vatBreakdown==='otacos-5.5-and-10')checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat1)))}`]);
+  if(profile.vatBreakdown==='otacos-5.5-and-10'){const vat20=Math.abs(uber.vat3||0);checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat1)-vat20))}`+(vat20>.004?` · 20 % : ${money.format(vat20)}`:'')]);}
   if(profile.vatBreakdown==='doz-5.5-and-10')checks.push(['TVA Uber ventilée',`10 % : ${money.format(Math.abs(uber.vat2))} · 5,5 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat2)))}`]);
   if(cash)checks.push(['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`]);
   checks.push(['TVA recalculée',profile.vatBreakdown==='5.5-and-10'?'Uber 5,5 % / 10 % · Frais 20 %':'Uber 10 % · Frais 20 %'],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]);
