@@ -280,6 +280,12 @@ function buildRows(uber,cash){
     rows.push(line(date,journal,a.marketing,ul,isCredit?null:adjHt,isCredit?adjHt:null,profile.expenseVat),line(date,journal,a.deductibleVat,ul,isCredit?null:adjVat,isCredit?adjVat:null));
   }
   uber.payouts.sort((x,y)=>x[0]==='À venir'?1:y[0]==='À venir'?-1:x[0].split('/').reverse().join('').localeCompare(y[0].split('/').reverse().join(''))).forEach(([d,v])=>rows.push(line(date,journal,a.uberSettlement,`${ul} ${d==='À venir'?'a venir':d}`,Math.abs(v))));
+  // Les exports Uber peuvent inclure de petits ajustements de règlement qui ne
+  // sont pas ventilés par colonne. Pour HAGTACOS, l'écriture réellement postée
+  // en juillet 2026 les porte au compte marketing 623204 sous ce libellé. On
+  // rapproche ainsi les versements Uber sans modifier le chiffre d'affaires.
+  const uberDebit=round(rows.reduce((sum,r)=>sum+(r.debit||0),0)),uberCredit=round(rows.reduce((sum,r)=>sum+(r.credit||0),0)),settlementGap=round(uberCredit-uberDebit);
+  if(profile.id==='hagtacos'&&Math.abs(settlementGap)>.01) rows.push(line(date,journal,a.marketing,'Écart de règlement non significatif',settlementGap>0?settlementGap:null,settlementGap<0?Math.abs(settlementGap):null));
   if(profile.mode==='uber-and-cash'){
     if(profile.cashAdapter==='otacos-taxes'){
       rows.push(line(date,'VT',a.salesSP55,cl,null,round(cash.sp55.ht),.055),line(date,'VT',a.salesAE55,cl,null,round(cash.ae55.ht),.055),line(date,'VT',a.vat55,cl,null,round(cash.sp55.tax+cash.ae55.tax)),
