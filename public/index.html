@@ -21,7 +21,7 @@
 
     <section class="panel flow-panel">
       <div class="steps" aria-label="Progression">
-        <div class="step active"><b>1</b><span>Société</span></div><i></i><div class="step"><b>2</b><span>Fichiers</span></div><i></i><div class="step"><b>3</b><span>Contrôles</span></div><i></i><div class="step"><b>4</b><span>Téléchargement</span></div>
+        <div class="step active"><b>1</b><span>Société</span></div><i></i><div class="step"><b>2</b><span>Fichiers</span></div><i></i><div class="step"><b>3</b><span>Aperçu</span></div><i></i><div class="step"><b>4</b><span>Écriture comptable</span></div>
       </div>
       <div class="form-grid">
         <label class="field"><span>Société</span><select id="company">
@@ -59,12 +59,12 @@
       </div>
       <div id="preflight" class="preflight">
         <div><span class="status-dot"></span><strong>Deux imports obligatoires pour PDFK</strong><small>Ajoutez l'import Uber et l'import caisse avant de créer l'écriture comptable.</small></div>
-        <button id="process" disabled><span>Créer l'écriture comptable</span><b>→</b></button>
+        <button id="process" disabled><span>Générer l'aperçu</span><b>→</b></button>
       </div>
     </section>
 
     <section id="results" class="results" hidden>
-      <div class="result-head"><div><p class="eyebrow">RÉSULTAT DU TRAITEMENT</p><h2>Écriture prête à valider</h2></div><span id="result-period"></span></div>
+      <div class="result-head"><div><p class="eyebrow">APERÇU ET VÉRIFICATION</p><h2>Aperçu prêt à vérifier</h2></div><span id="result-period"></span></div>
       <div class="kpis">
         <article id="cash-kpi"><span>CA caisse TTC</span><strong id="cash-total">—</strong><small id="cash-detail">Rapport caisse</small></article>
         <article><span>CA Uber TTC net</span><strong id="uber-revenue">—</strong><small>Ventes − remboursements − promotions</small></article>
@@ -79,7 +79,7 @@
         <div class="table-wrap"><table><thead><tr><th>Date</th><th>Journal</th><th>Compte</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead><tbody id="rows"></tbody></table></div>
       </div>
       <div id="error-log" class="error-log" hidden><h3>Journal des erreurs</h3><ul></ul></div>
-      <div class="download-bar"><div><strong id="download-status">Validation requise</strong><small id="download-help">Vérifiez les contrôles avant de générer le fichier.</small></div><button id="download" disabled>Télécharger le fichier Pennylane</button></div>
+      <div class="download-bar"><div><strong id="download-status">Validation requise</strong><small id="download-help">Vérifiez l'aperçu ci-dessus avant de créer l'écriture comptable.</small></div><button id="download" disabled>Créer l'écriture comptable (Excel à importer)</button></div>
       <div id="pennylane-bar" class="pennylane-bar panel">
         <div class="pennylane-head"><h3>Envoi direct à Pennylane <span class="beta-tag">bêta</span></h3><span id="pennylane-status">Aucun aperçu généré</span></div>
         <p class="pennylane-note">Étape 1 : générez un aperçu (lecture seule, n'écrit rien). Étape 2 : vérifiez les comptes et montants, puis confirmez l'envoi — cette action crée réellement l'écriture dans Pennylane et n'est pas réversible depuis cet outil.</p>
