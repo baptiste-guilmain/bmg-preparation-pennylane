@@ -1,17 +1,23 @@
 // Profil générique O'Tacos : Uber seul, TVA 5,5 % et 10 %, comptes propres à
 // chaque société. Voir la formule dans app.js (vatBreakdown 'otacos-5.5-and-10'),
 // validée cellule par cellule sur le modèle HAGTACOS de juillet 2026.
-function otacosProfile({ id, name, label, establishmentId, accounts }) {
+// `cashAccounts`, quand fourni, active le mode caisse (rapport POS "Reports" avec
+// TVA 5,5 %/10 % x SP/AE — voir cashAdapter 'otacos-taxes' dans app.js), validé
+// cellule par cellule contre l'écriture RÉELLEMENT postée dans Pennylane pour
+// 8 sociétés en juillet 2026 (toutes sauf VINIOS, dont le rapport n'a pas le
+// second tableau "hors plateformes" nécessaire — reste en Uber seul pour l'instant).
+function otacosProfile({ id, name, label, establishmentId, accounts, cashAccounts }) {
   return {
     id,
     name,
     label,
-    mode: 'uber-only',
+    mode: cashAccounts ? 'uber-and-cash' : 'uber-only',
+    cashAdapter: cashAccounts ? 'otacos-taxes' : undefined,
     uberJournal: '',
     vatBreakdown: 'otacos-5.5-and-10',
     expenseVat: 0.20,
     uberEstablishments: establishmentId ? [establishmentId] : [],
-    accounts
+    accounts: cashAccounts ? { ...accounts, ...cashAccounts } : accounts
   };
 }
 
@@ -103,6 +109,17 @@ export const profiles = {
       marketing: ['62320400', 'DEPENSES MARKETING UBEREATS'],
       mealVoucher: ['58000400', 'VERSEMENT TR'],
       uberSettlement: ['58000600', 'UBEREAT']
+    },
+    // Caisse (rapport POS "Reports", table hors plateformes) : comptes confirmés
+    // le 7 sept. 2026 contre l'écriture RÉELLEMENT postée dans Pennylane de
+    // juillet 2026, exacts au centime. HAGTACOS est la seule société du groupe à
+    // utiliser le compte générique 7011 (et non 70111) pour la vente 10 % SP.
+    cashAccounts: {
+      salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'],
+      salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+      salesSP10: ['7011', 'VENTES 10% SUR PLACE'],
+      salesAE10: ['70112', 'VENTES 10% A EMPORTER'],
+      cash: ['531', 'CAISSE']
     }
   }),
   colmios: otacosProfile({
@@ -120,6 +137,15 @@ export const profiles = {
       marketing: ['62320500', 'DEPENSES MARKETING UBEREATS'],
       mealVoucher: ['58000400', 'VERSEMENT TR'],
       uberSettlement: ['58000600', 'UBEREAT']
+    },
+    // Caisse : comptes confirmés le 7 sept. 2026 contre l'écriture réelle de
+    // juillet 2026 (exacts au centime).
+    cashAccounts: {
+      salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'],
+      salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+      salesSP10: ['70111', 'VENTES 10% SUR PLACE'],
+      salesAE10: ['70112', 'VENTES 10% A EMPORTER'],
+      cash: ['531', 'CAISSE']
     }
   }),
   // Les 8 sociétés ci-dessous ont leurs comptes confirmés le 4 sept. 2026 via
@@ -134,36 +160,56 @@ export const profiles = {
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623204', 'DEPENSES MARKETING UBEREATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+  }, cashAccounts: {
+    salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE']
   } }),
   epios: otacosProfile({ id: 'epios', name: 'EPIOS', label: "O'Tacos", establishmentId: '', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623204', 'DEPENSES MARKETING UBEREATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+  }, cashAccounts: {
+    salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE']
   } }),
   geipios: otacosProfile({ id: 'geipios', name: 'GEIPIOS', label: "O'Tacos", establishmentId: '', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623204', 'DEPENSES MARKETING UBEREATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+  }, cashAccounts: {
+    salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE']
   } }),
   sarios: otacosProfile({ id: 'sarios', name: 'SARIOS', label: "O'Tacos", establishmentId: '', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+  }, cashAccounts: {
+    salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE']
   } }),
   hautios: otacosProfile({ id: 'hautios', name: 'HAUTIOS', label: "O'Tacos", establishmentId: '', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+  }, cashAccounts: {
+    salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE']
   } }),
   mulios: otacosProfile({ id: 'mulios', name: 'MULIOS', label: "O'Tacos Mulhouse", establishmentId: '', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+  }, cashAccounts: {
+    // MULIOS est la seule société du groupe dont le compte de caisse est 530 et
+    // non 531 (confirmé sur l'écriture RECETTES réelle de juillet 2026).
+    salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['530', 'CAISSE']
   } }),
   // ARIOS : écriture Uber Eats de juillet 2026 confirmée (comme les 7 autres), avec
   // une différence réelle sur le compte de versement : 580009 et non 580006.
