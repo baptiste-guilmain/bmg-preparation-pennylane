@@ -93,13 +93,17 @@ async function parseUber(file){
   const sum=k=>round(data.reduce((a,r)=>a+amount(r[ix[k]]),0));
   const payouts=new Map(); data.forEach(r=>{const v=amount(r[ix.total]);const d=dateValue(r[ix.payout]);const key=d||'À venir';payouts.set(key,round((payouts.get(key)||0)+v))});
   const establishments=[...new Set(data.map(r=>String(r[ix.establishment]||'').trim()).filter(Boolean))];
-  const periods=[...new Set(data.map(r=>monthValue(r[ix.orderDate])).filter(Boolean))];
+  // Un export mensuel peut contenir des remboursements contestés de commandes
+  // antérieures, mais comptabilisés dans le règlement du mois courant. La
+  // période majoritaire identifie donc le fichier sans écarter ces ajustements.
+  const periodCounts=new Map();data.forEach(r=>{const p=monthValue(r[ix.orderDate]);if(p)periodCounts.set(p,(periodCounts.get(p)||0)+1)});
+  const periods=[...periodCounts.keys()],primaryPeriod=[...periodCounts.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
   const vatSum=k=>ix[k]<0?0:sum(k);
   return {sales:sum('sales'),refund:sum('refund'),promo:sum('promo'),
     vat3:vatSum('vat3'),
     vat1:round(vatSum('vat1')+vatSum('vat1Adjustment')+vatSum('vat1Offer')),
     vat2:round(vatSum('vat2')+vatSum('vat2Adjustment')+vatSum('vat2Offer')),
-    offerFee:sum('offerFee'),offerVat:sum('offerVat'),marketingAdjustment:ix.marketingAdjustment<0?0:sum('marketingAdjustment'),voucher:sum('voucher'),commission:sum('commission'),commissionVat:sum('commissionVat'),other:sum('other'),total:sum('total'),payouts:[...payouts].filter(([,v])=>Math.abs(v)>.004),establishments,periods,rowCount:data.length};
+    offerFee:sum('offerFee'),offerVat:sum('offerVat'),marketingAdjustment:ix.marketingAdjustment<0?0:sum('marketingAdjustment'),voucher:sum('voucher'),commission:sum('commission'),commissionVat:sum('commissionVat'),other:sum('other'),total:sum('total'),payouts:[...payouts].filter(([,v])=>Math.abs(v)>.004),establishments,periods,primaryPeriod,rowCount:data.length};
 }
 function amount(v){
   if(v==null||v==='')return 0;
@@ -310,7 +314,7 @@ $('#process').addEventListener('click',async()=>{
     const uber=await parseUber(state.files.uber),uberRevenue=round(uber.sales+uber.refund+uber.promo),cash=profile.mode==='uber-and-cash'?await parseCash(state.files.cash,state.files.operations,uberRevenue):null,built=buildRows(uber,cash);state.rows=built.rows;
     const debit=round(state.rows.reduce((s,r)=>s+(r.debit||0),0)),credit=round(state.rows.reduce((s,r)=>s+(r.credit||0),0)),diff=round(debit-credit);
     const selected=$('#period').value;
-    if(uber.periods.length!==1||uber.periods[0]!==selected)errors.push(`La période Uber détectée (${uber.periods.join(', ')||'inconnue'}) ne correspond pas à ${selected}.`);
+    if(uber.primaryPeriod!==selected)errors.push(`La période principale Uber détectée (${uber.primaryPeriod||'inconnue'}) ne correspond pas à ${selected}.`);
     if(cash&&cash.period&&cash.period!==selected)errors.push(`La période du rapport de caisse (${cash.period}) ne correspond pas à ${selected}.`);
     const unknown=profile.uberEstablishments.length?uber.establishments.filter(x=>!profile.uberEstablishments.includes(x)):[];if(unknown.length)errors.push(`Établissement Uber non reconnu pour ${profile.name} : ${unknown.join(', ')}.`);
     if(Math.abs(diff)>.01)errors.push(`Écriture déséquilibrée de ${money.format(Math.abs(diff))}.`);
