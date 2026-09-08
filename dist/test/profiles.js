@@ -75,25 +75,46 @@ export const profiles = {
       cash: ['531000000', 'CAISSE']
     }
   },
+  // STRASGAME = SAINTIOS (même société, confirmé par Baptiste). Comptes Uber
+  // CORRIGÉS le 8 sept. 2026 contre l'écriture UBEREATS 07.2026 RÉELLEMENT
+  // postée (API, jeton obtenu ce jour-là — jamais vérifié avant, seul
+  // l'équilibre débit=crédit avait été contrôlé, ce qui ne suffit pas : deux
+  // comptes étaient réellement faux (pas juste du padding de zéros comme sur
+  // HAGTACOS/COLMARDOZ) : vat55 notait 445710055 au lieu de 44571006, et
+  // uberSettlement notait 580009 au lieu de 580006. Les 7 autres comptes
+  // n'avaient que le padding habituel, retiré ici aussi.
+  //
+  // Caisse (cashAdapter 'strasgame-retraitements', voir app.js) : rapport
+  // Zelty "RETRAITEMENTS", section "Ecritures" (Sur place/A emporter x
+  // 5,5 %/10 %, bornes Belorder incluses, Livraison — Uber Eats + Deliveroo —
+  // exclue). Comptes identiques au schéma O'Tacos/ALDN (701051/701052/70111/
+  // 70112/44571006/44571008/531), confirmés exacts au centime contre
+  // l'écriture RECETTES 07.2026 réellement postée le 8 sept. 2026.
   strasgame: {
     id: 'strasgame',
     name: 'STRASGAME',
     label: 'Crousty Game — Strasbourg',
-    mode: 'uber-only',
+    mode: 'uber-and-cash',
+    cashAdapter: 'strasgame-retraitements',
     uberJournal: 'VT',
     vatBreakdown: '5.5-and-10',
     expenseVat: 0.20,
     uberEstablishments: [],
     accounts: {
-      uberSales55: ['701140000', 'VENTES 5,5% UBEREATS'],
-      vat55: ['445710055', 'TVA collectée à 5,5%'],
-      uberSales10: ['701130000', 'VENTES 10% UBEREATS'],
-      vat10: ['445710080', 'TVA collectée à 10%'],
-      commission: ['622200000', 'COMMISSIONS UBEREATS'],
-      deductibleVat: ['445660000', 'TVA sur autres biens et services'],
-      marketing: ['623204000', 'DEPENSES MARKETING UBEREATS'],
-      mealVoucher: ['580004000', 'VERSEMENT TR'],
-      uberSettlement: ['580009000', 'UBEREAT']
+      uberSales55: ['70114', 'VENTES 5,5% UBEREATS'],
+      vat55: ['44571006', 'TVA collectée à 5,5%'],
+      uberSales10: ['70113', 'VENTES 10% UBEREATS'],
+      vat10: ['44571008', 'TVA collectée à 10%'],
+      commission: ['6222', 'COMMISSIONS UBEREATS'],
+      deductibleVat: ['44566', 'TVA sur autres biens et services'],
+      marketing: ['623204', 'DEPENSES MARKETING UBEREATS'],
+      mealVoucher: ['580004', 'VERSEMENT TR'],
+      uberSettlement: ['580006', 'UBEREAT'],
+      salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'],
+      salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+      salesSP10: ['70111', 'VENTES 10% SUR PLACE'],
+      salesAE10: ['70112', 'VENTES 10% A EMPORTER'],
+      cash: ['531', 'CAISSE']
     }
   },
   hagtacos: otacosProfile({

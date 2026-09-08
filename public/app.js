@@ -41,14 +41,14 @@ function formatBytes(n){return n>1048576?`${(n/1048576).toFixed(1)} Mo`:`${Math.
 bindFile('#uber-file','#uber-zone','uber'); bindFile('#cash-file','#cash-zone','cash'); bindFile('#operations-file','#operations-zone','operations');
 function clearFile(key){const zone=$(`#${key}-zone`),input=$(`#${key}-file`),box=zone.querySelector('.chosen');state.files[key]=null;input.value='';zone.classList.remove('has-file');box.hidden=true}
 function setProfile(id){
-  profile=getProfile(id); const needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',dozCash=profile.cashAdapter==='doz-taxes',aldnCash=profile.cashAdapter==='aldn-taxes';
+  profile=getProfile(id); const needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',dozCash=profile.cashAdapter==='doz-taxes',aldnCash=profile.cashAdapter==='aldn-taxes',strasgameCash=profile.cashAdapter==='strasgame-retraitements';
   clearFile('uber'); clearFile('cash'); clearFile('operations'); $('#cash-zone').hidden=!needsCash; $('#operations-zone').hidden=!otacosCash;
   $('#profile-state').textContent=needsCash?`${profile.name} · Uber + caisse validés`:`${profile.name} · Uber validé`;
-  $('#profile-help').textContent=needsCash?(otacosCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':dozCash?'Profil caisse : TVA 5,5 % / 10 %':aldnCash?'Profil caisse : TVA 5,5 % / 10 % / 20 % × sur place/à emporter':'Profil caisse : CA Liquide / Solide'):(profile.vatBreakdown?'Profil actif : Uber seul · TVA 5,5 % et 10 %':'Profil actif : Uber seul');
+  $('#profile-help').textContent=needsCash?(otacosCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':dozCash?'Profil caisse : TVA 5,5 % / 10 %':aldnCash?'Profil caisse : TVA 5,5 % / 10 % / 20 % × sur place/à emporter':strasgameCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':'Profil caisse : CA Liquide / Solide'):(profile.vatBreakdown?'Profil actif : Uber seul · TVA 5,5 % et 10 %':'Profil actif : Uber seul');
   $('#intro-note').textContent=needsCash?(otacosCash?"Déposez l'export Uber, le rapport Taxes et les Opérations quotidiennes du mois. Uber et Deliveroo sont retirés de la caisse ; aucune écriture Deliveroo n'est créée ici.":"Déposez les deux justificatifs du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération."):`Déposez l'export Uber du mois. L'outil applique les règles ${profile.name} et vérifie l'écriture avant génération.`;
   $('#uber-help').textContent=`Excel ou CSV · obligatoire pour ${profile.name}`;
-  $('#cash-help').textContent=(otacosCash||dozCash||aldnCash)?`Excel (.xlsx) · obligatoire pour ${profile.name}`:`PDF, Excel ou CSV · obligatoire pour ${profile.name}`;
-  $('#cash-zone em').textContent=otacosCash?"Le rapport Excel brut « Taxes » du logiciel de caisse, feuille « Reports », pour le mois concerné":dozCash?"Le rapport de taxes du logiciel de caisse (export Excel avec les onglets Revenus/TVA), pour le mois concerné":aldnCash?"Le rapport Excel « Répartition des taux de TVA par emplacement » du logiciel de caisse, pour le mois concerné":"Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)";
+  $('#cash-help').textContent=(otacosCash||dozCash||aldnCash||strasgameCash)?`Excel (.xlsx) · obligatoire pour ${profile.name}`:`PDF, Excel ou CSV · obligatoire pour ${profile.name}`;
+  $('#cash-zone em').textContent=otacosCash?"Le rapport Excel brut « Taxes » du logiciel de caisse, feuille « Reports », pour le mois concerné":dozCash?"Le rapport de taxes du logiciel de caisse (export Excel avec les onglets Revenus/TVA), pour le mois concerné":aldnCash?"Le rapport Excel « Répartition des taux de TVA par emplacement » du logiciel de caisse, pour le mois concerné":strasgameCash?"Le rapport Excel « RETRAITEMENTS » du logiciel de caisse (Zelty), pour le mois concerné":"Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)";
   $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight(); resetPennylanePanel();
 }
 $('#company').addEventListener('change',e=>setProfile(e.target.value));
@@ -128,19 +128,35 @@ function parseDelimited(text){
   const sep=(text.split('\n')[0].match(/;/g)||[]).length>(text.split('\n')[0].match(/,/g)||[]).length?';':','; const rows=[];let row=[],cell='',q=false;
   for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(q&&text[i+1]==='"'){cell+='"';i++}else q=!q}else if(c===sep&&!q){row.push(cell);cell=''}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell=''}else cell+=c} if(cell||row.length){row.push(cell);rows.push(row)}return rows;
 }
-async function parseXlsx(file,sheetNameMatch){
+async function parseXlsxWorkbook(file){
   const zip=await JSZip.loadAsync(await file.arrayBuffer());
   const xml=async p=>new DOMParser().parseFromString(await zip.file(p).async('text'),'application/xml');
   const shared=[];if(zip.file('xl/sharedStrings.xml')){const d=await xml('xl/sharedStrings.xml');d.querySelectorAll('si').forEach(si=>shared.push([...si.querySelectorAll('t')].map(x=>x.textContent).join('')))}
   const styleFormats=[];if(zip.file('xl/styles.xml')){const sd=await xml('xl/styles.xml'),custom={};sd.querySelectorAll('numFmt').forEach(n=>custom[n.getAttribute('numFmtId')]=n.getAttribute('formatCode'));sd.querySelectorAll('cellXfs > xf').forEach(x=>styleFormats.push(custom[x.getAttribute('numFmtId')]||''))}
   const wb=await xml('xl/workbook.xml'),rels=await xml('xl/_rels/workbook.xml.rels');
+  const sheetEls=[...wb.querySelectorAll('sheet')];
+  const readSheet=async sheetEl=>{
+    const rid=sheetEl.getAttribute('r:id');const rel=[...rels.querySelectorAll('Relationship')].find(x=>x.getAttribute('Id')===rid);let target=rel.getAttribute('Target').replace(/^\//,'');if(!target.startsWith('xl/'))target='xl/'+target.replace(/^\.\//,'');const sheet=await xml(target);
+    const rows=[]; sheet.querySelectorAll('row').forEach(rx=>{const row=[];rx.querySelectorAll('c').forEach(c=>{const ref=c.getAttribute('r'),col=lettersToIndex(ref.match(/[A-Z]+/)[0]),t=c.getAttribute('t'),raw=c.querySelector('v')?.textContent??'',inline=c.querySelector('is t')?.textContent??'',fmt=styleFormats[+(c.getAttribute('s')||0)]||'';let val=t==='s'?shared[+raw]:(t==='inlineStr'?inline:(t==='str'?raw:(raw===''?'':Number(raw))));if(typeof val==='number'&&/^d{1,2}\.m{1,2}$/i.test(fmt))val={excel:val,decimals:fmt.toLowerCase()==='d.m'?1:2};row[col]=val});rows.push(row)});
+    return rows;
+  };
+  return {sheetEls,readSheet};
+}
+async function parseXlsx(file,sheetNameMatch){
+  const {sheetEls,readSheet}=await parseXlsxWorkbook(file);
   // Par defaut le 1er onglet (comportement historique). Certains rapports (DOZ)
   // ont plusieurs onglets : sheetNameMatch permet de cibler celui voulu par un
   // fragment de nom normalise, avec repli sur le 1er onglet si non trouve.
-  const sheetEls=[...wb.querySelectorAll('sheet')];
   const sheetEl=sheetNameMatch?(sheetEls.find(s=>normalize(s.getAttribute('name')).indexOf(sheetNameMatch)>=0)||sheetEls[0]):sheetEls[0];
-  const rid=sheetEl.getAttribute('r:id');const rel=[...rels.querySelectorAll('Relationship')].find(x=>x.getAttribute('Id')===rid);let target=rel.getAttribute('Target').replace(/^\//,'');if(!target.startsWith('xl/'))target='xl/'+target.replace(/^\.\//,'');const sheet=await xml(target);
-  const rows=[]; sheet.querySelectorAll('row').forEach(rx=>{const row=[];rx.querySelectorAll('c').forEach(c=>{const ref=c.getAttribute('r'),col=lettersToIndex(ref.match(/[A-Z]+/)[0]),t=c.getAttribute('t'),raw=c.querySelector('v')?.textContent??'',inline=c.querySelector('is t')?.textContent??'',fmt=styleFormats[+(c.getAttribute('s')||0)]||'';let val=t==='s'?shared[+raw]:(t==='inlineStr'?inline:(t==='str'?raw:(raw===''?'':Number(raw))));if(typeof val==='number'&&/^d{1,2}\.m{1,2}$/i.test(fmt))val={excel:val,decimals:fmt.toLowerCase()==='d.m'?1:2};row[col]=val});rows.push(row)});return rows;
+  return readSheet(sheetEl);
+}
+// Lit TOUS les onglets d'un classeur (contrairement a parseXlsx qui n'en lit
+// qu'un). Utilise quand la section recherchee peut se trouver sur un onglet
+// dont le nom n'est pas previsible d'un mois sur l'autre (ex. STRASGAME).
+async function parseXlsxAllSheets(file){
+  const {sheetEls,readSheet}=await parseXlsxWorkbook(file);
+  const out=[];for(const sheetEl of sheetEls) out.push({name:sheetEl.getAttribute('name'),rows:await readSheet(sheetEl)});
+  return out;
 }
 function lettersToIndex(s){let n=0;for(const c of s)n=n*26+c.charCodeAt(0)-64;return n-1}
 
@@ -148,6 +164,7 @@ async function parseCash(file,operationsFile){
   if(profile.cashAdapter==='otacos-taxes') return parseCashOtacos(file,operationsFile);
   if(profile.cashAdapter==='doz-taxes') return parseCashDoz(file);
   if(profile.cashAdapter==='aldn-taxes') return parseCashAldn(file);
+  if(profile.cashAdapter==='strasgame-retraitements') return parseCashStrasgame(file);
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf'){
     const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;let text='';for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),content=await p.getTextContent();text+=' '+content.items.map(x=>x.str).join(' ')}return parseCashText(text);
@@ -286,6 +303,45 @@ async function parseCashAldn(file){
     total,period:extractAldnPeriod(periodCell),kind:'aldn-taxes'};
 }
 
+async function parseCashStrasgame(file){
+  // Rapport de caisse Zelty "RETRAITEMENTS" de STRASGAME (Crousty Game) : classeur
+  // à plusieurs onglets dont le nom n'est pas garanti stable d'un mois sur
+  // l'autre (vu "Feuil1" sur le fichier de juillet). On cherche donc la section
+  // "Ecritures" sur TOUS les onglets plutot que de viser un nom d'onglet fixe.
+  // Cette section donne Sur place/A emporter x 5,5 %/10 % DEJA calculee (les
+  // "bornes" Belorder et le Zelty caisse/télécommande y sont inclus, la
+  // Livraison — Uber Eats + Deliveroo — en est exclue, Uber ayant sa propre
+  // écriture et Deliveroo restant hors outil). Confirmé le 8 sept. 2026 exact
+  // au centime contre l'écriture RECETTES 07.2026 réellement postée (API).
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(ext!=='xlsx') throw new Error('Le rapport de caisse STRASGAME doit être un fichier Excel (.xlsx).');
+  const sheets=await parseXlsxAllSheets(file);
+  const num=v=>typeof v==='number'?v:0;
+  let rows=null,startIdx=null;
+  for(const sheet of sheets){
+    const idx=sheet.rows.findIndex(r=>normalize(r&&r[0])==='ecritures');
+    if(idx>=0){rows=sheet.rows;startIdx=idx;break;}
+  }
+  if(rows==null) throw new Error('Section "Ecritures" introuvable dans le rapport de caisse STRASGAME.');
+  const values={};let mode=null;
+  for(let i=startIdx+1;i<rows.length;i++){
+    const row=rows[i];if(!row)continue;
+    const rate=typeof row[1]==='number'?row[1]:null;if(rate==null)continue;
+    const label=normalize(row[0]);
+    if(label==='sur place')mode='sp';else if(label==='a emporter')mode='ae';else if(row[0])break;
+    const ht=num(row[2]),tax=num(row[4]);
+    if(Math.abs(rate-.055)<.001){if(mode==='sp'){values.spHt55=ht;values.spTax55=tax}else if(mode==='ae'){values.aeHt55=ht;values.aeTax55=tax}}
+    else if(Math.abs(rate-.1)<.001){if(mode==='sp'){values.spHt10=ht;values.spTax10=tax}else if(mode==='ae'){values.aeHt10=ht;values.aeTax10=tax}}
+    if([values.spHt55,values.aeHt55,values.spHt10,values.aeHt10].every(v=>v!=null))break;
+  }
+  if([values.spHt55,values.aeHt55,values.spHt10,values.aeHt10].some(v=>v==null))
+    throw new Error('Les lignes Sur place/A emporter (5,5 % et 10 %) sont introuvables dans la section "Ecritures".');
+  const total=round(values.spHt55+values.spTax55+values.aeHt55+values.aeTax55+values.spHt10+values.spTax10+values.aeHt10+values.aeTax10);
+  return {sp55:values.spHt55,ae55:values.aeHt55,vat55:round(values.spTax55+values.aeTax55),
+    sp10:values.spHt10,ae10:values.aeHt10,vat10:round(values.spTax10+values.aeTax10),
+    total,period:'',kind:'strasgame-retraitements'};
+}
+
 function periodInfo(){const [y,m]=$('#period').value.split('-').map(Number);return {y,m,last:new Date(Date.UTC(y,m,0)),label:`${String(m).padStart(2,'0')}.${y}`}}
 function line(date,journal,account,label,debit=null,credit=null,vat=null){return {date,journal,account:account[0],accountLabel:account[1],label,debit,credit,vat}}
 function buildRows(uber,cash){
@@ -375,6 +431,10 @@ function buildRows(uber,cash){
         line(date,'VT',a.salesSP10,cl,null,round(cash.sp10),.10),line(date,'VT',a.salesAE10,cl,null,round(cash.ae10),.10),line(date,'VT',a.vat10,cl,null,round(cash.vat10)));
       if(cash.sp20>.004||cash.ae20>.004) rows.push(line(date,'VT',a.salesSP20,cl,null,round(cash.sp20),.20),line(date,'VT',a.salesAE20,cl,null,round(cash.ae20),.20),line(date,'VT',a.cashVat20,cl,null,round(cash.vat20)));
       rows.push(line(date,'VT',a.cash,cl,cash.total));
+    }else if(profile.cashAdapter==='strasgame-retraitements'){
+      rows.push(line(date,'VT',a.salesSP55,cl,null,round(cash.sp55),.055),line(date,'VT',a.salesAE55,cl,null,round(cash.ae55),.055),line(date,'VT',a.vat55,cl,null,round(cash.vat55)),
+        line(date,'VT',a.salesSP10,cl,null,round(cash.sp10),.10),line(date,'VT',a.salesAE10,cl,null,round(cash.ae10),.10),line(date,'VT',a.vat10,cl,null,round(cash.vat10)),
+        line(date,'VT',a.cash,cl,cash.total));
     }else{
       rows.push(line(date,'VT',a.liquid,cl,null,cash.liquid.ht,profile.uberVat),line(date,'VT',a.vat10,cl,null,cash.liquid.vat),line(date,'VT',a.solid,cl,null,cash.solid.ht,profile.uberVat),line(date,'VT',a.vat10,cl,null,cash.solid.vat),line(date,'VT',a.alcohol,cl,null,cash.alcohol.ht,.20),line(date,'VT',a.vat20,cl,null,cash.alcohol.vat),line(date,'VT',a.cash,cl,cash.total));
     }
@@ -394,12 +454,12 @@ $('#process').addEventListener('click',async()=>{
     const unknown=profile.uberEstablishments.length?uber.establishments.filter(x=>!profile.uberEstablishments.includes(x)):[];if(unknown.length)errors.push(`Établissement Uber non reconnu pour ${profile.name} : ${unknown.join(', ')}.`);
     if(Math.abs(diff)>.01)errors.push(`Écriture déséquilibrée de ${money.format(Math.abs(diff))}.`);
     if(Math.abs(round(uber.total-(uber.payouts.reduce((s,[,v])=>s+v,0))))>.01)errors.push('Le total Uber ne correspond pas à la somme des versements.');
-    if(cash&&cash.kind!=='otacos-taxes'&&cash.kind!=='doz-taxes'&&cash.kind!=='aldn-taxes'){if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');if(Math.abs(round((cash.solid.ht+cash.solid.vat)-cash.solid.ttc))>.02)errors.push('La ligne caisse Solide ne se recalcule pas.');if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');if(cash.declaredTotal!=null&&Math.abs(round(cash.total-cash.declaredTotal))>.02)errors.push(`Le total des trois lignes caisse (${money.format(cash.total)}) ne correspond pas au total TTC du PDF (${money.format(cash.declaredTotal)}).`)}
+    if(cash&&cash.kind!=='otacos-taxes'&&cash.kind!=='doz-taxes'&&cash.kind!=='aldn-taxes'&&cash.kind!=='strasgame-retraitements'){if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');if(Math.abs(round((cash.solid.ht+cash.solid.vat)-cash.solid.ttc))>.02)errors.push('La ligne caisse Solide ne se recalcule pas.');if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');if(cash.declaredTotal!=null&&Math.abs(round(cash.total-cash.declaredTotal))>.02)errors.push(`Le total des trois lignes caisse (${money.format(cash.total)}) ne correspond pas au total TTC du PDF (${money.format(cash.declaredTotal)}).`)}
     renderResults(uber,cash,built,debit,credit,errors);
   }catch(e){errors.push(e.message||'Erreur inconnue.');renderErrors(errors)}finally{btn.querySelector('span').textContent="Générer l'aperçu";btn.disabled=!(state.files.uber&&(profile.mode==='uber-only'||(state.files.cash&&(profile.cashAdapter!=='otacos-taxes'||state.files.operations))))}
 });
 function renderResults(uber,cash,built,debit,credit,errors){
-  $('#results').hidden=false;$('#result-period').textContent=`${profile.name} · ${periodInfo().label}`;$('#cash-kpi').hidden=!cash;if(cash){$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=cash.kind==='otacos-taxes'?`HT ${money.format(cash.sp55.ht+cash.ae55.ht+cash.sp10.ht+cash.ae10.ht)} · TVA ${money.format(cash.sp55.tax+cash.ae55.tax+cash.sp10.tax+cash.ae10.tax)}`:cash.kind==='doz-taxes'?`HT ${money.format(cash.ht55+cash.ht10)} · TVA ${money.format(cash.vat55+cash.vat10)}`:cash.kind==='aldn-taxes'?`HT ${money.format(cash.sp55+cash.ae55+cash.sp10+cash.ae10+cash.sp20+cash.ae20)} · TVA ${money.format(cash.vat55+cash.vat10+cash.vat20)}`:`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`};$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
+  $('#results').hidden=false;$('#result-period').textContent=`${profile.name} · ${periodInfo().label}`;$('#cash-kpi').hidden=!cash;if(cash){$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=cash.kind==='otacos-taxes'?`HT ${money.format(cash.sp55.ht+cash.ae55.ht+cash.sp10.ht+cash.ae10.ht)} · TVA ${money.format(cash.sp55.tax+cash.ae55.tax+cash.sp10.tax+cash.ae10.tax)}`:cash.kind==='doz-taxes'?`HT ${money.format(cash.ht55+cash.ht10)} · TVA ${money.format(cash.vat55+cash.vat10)}`:cash.kind==='aldn-taxes'?`HT ${money.format(cash.sp55+cash.ae55+cash.sp10+cash.ae10+cash.sp20+cash.ae20)} · TVA ${money.format(cash.vat55+cash.vat10+cash.vat20)}`:cash.kind==='strasgame-retraitements'?`HT ${money.format(cash.sp55+cash.ae55+cash.sp10+cash.ae10)} · TVA ${money.format(cash.vat55+cash.vat10)}`:`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`};$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
   const checks=[['Structure Uber reconnue',`${uber.rowCount} lignes · ${uber.payouts.length} versements`],['Société et période cohérentes',`${uber.establishments.join(', ')} · ${periodInfo().label}`]];
   if(profile.vatBreakdown==='5.5-and-10')checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % : ${money.format(Math.abs(uber.vat2))}`]);
   if(profile.vatBreakdown==='otacos-5.5-and-10'){const vat20=Math.abs(uber.vat3||0);checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat1)-vat20))}`+(vat20>.004?` · 20 % : ${money.format(vat20)}`:'')]);}
@@ -407,6 +467,7 @@ function renderResults(uber,cash,built,debit,credit,errors){
   if(cash&&cash.kind==='otacos-taxes'){checks.push(['Taxes et opérations quotidiennes rapprochées',`${money.format(cash.rawTotal)} TTC`],['Uber retiré de la caisse (Opérations quotidiennes)',money.format(cash.uberExcluded)],['Deliveroo retiré de la caisse',money.format(cash.deliverooExcluded)],['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55.ht+cash.ae55.ht)} HT · TVA ${money.format(cash.sp55.tax+cash.ae55.tax)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10.ht+cash.ae10.ht)} HT · TVA ${money.format(cash.sp10.tax+cash.ae10.tax)}`],['Total caisse hors Uber et Deliveroo',money.format(cash.total)]);}
   else if(cash&&cash.kind==='doz-taxes'){checks.push(['Caisse - 5,5 %',`${money.format(cash.ht55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 %',`${money.format(cash.ht10)} HT · TVA ${money.format(cash.vat10)}`],['Total caisse (hors plateformes de livraison)',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
   else if(cash&&cash.kind==='aldn-taxes'){checks.push(['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55+cash.ae55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10+cash.ae10)} HT · TVA ${money.format(cash.vat10)}`]);if(cash.sp20>.004||cash.ae20>.004)checks.push(['Caisse - 20 % (SP + AE)',`${money.format(cash.sp20+cash.ae20)} HT · TVA ${money.format(cash.vat20)}`]);checks.push(['Total caisse hors Deliveroo et UberEats',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
+  else if(cash&&cash.kind==='strasgame-retraitements'){checks.push(['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55+cash.ae55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10+cash.ae10)} HT · TVA ${money.format(cash.vat10)}`],['Total caisse hors Deliveroo et UberEats',`${money.format(cash.total)} calculé sur la section « Ecritures »`]);}
   else if(cash)checks.push(['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`]);
   checks.push(['TVA recalculée',profile.vatBreakdown==='5.5-and-10'?'Uber 5,5 % / 10 % · Frais 20 %':'Uber 10 % · Frais 20 %'],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]);
   $('#check-list').innerHTML=checks.map(x=>`<div class="check-row"><b>✓</b><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');$('#check-badge').textContent=errors.length?'À corriger':`${checks.length} contrôles validés`;state.valid=!errors.length;renderRows();renderErrors(errors);$('#download').disabled=!state.valid;$('#download-status').textContent=state.valid?'Aperçu validé — fichier Excel prêt':'Création bloquée';$('#download-help').textContent=state.valid?`${state.rows.length} lignes comptables · à envoyer à l’expert-comptable ou à importer dans Pennylane`:'Corrigez les erreurs signalées puis régénérez l’aperçu.';setStep(state.valid?4:3);$('#results').scrollIntoView({behavior:'smooth',block:'start'});
