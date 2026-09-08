@@ -245,15 +245,45 @@ export const profiles = {
   // ALDN — enseigne IT TRATTORIA (pas O'Tacos, mais même moteur Uber/TVA que la
   // famille O'Tacos). Seule société avec une part de ventes Uber à 20 % (alcool,
   // colonne Uber "TVA 3 sur les ventes") : comptes uberSales20/vat20 dédiés.
-  // Formule et TOUS les comptes confirmés le 7 sept. 2026 contre l'écriture
+  // Formule et TOUS les comptes Uber confirmés le 7 sept. 2026 contre l'écriture
   // RÉELLEMENT postée dans Pennylane de juillet 2026 (API), exacts au centime près.
-  aldn: otacosProfile({ id: 'aldn', name: 'ALDN', label: 'IT TRATTORIA', establishmentId: '', accounts: {
-    uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
-    uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
-    uberSales20: ['70116', 'VENTES UBEREATS 20%'], vat20: ['44571009', 'TVA collectée à 20%'],
-    commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
-    marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
-  } }),
+  //
+  // Caisse (cashAdapter 'aldn-taxes', voir app.js) : un seul fichier "Répartition
+  // des taux de TVA par emplacement", 3 taux x 6 canaux (A Emporter/BàE/BSP/
+  // Deliveroo/Sur Place/UberEats). Comptes confirmés le 8 sept. 2026 contre
+  // l'écriture "RECETTES 07.2026" RÉELLEMENT postée (API, pas le tableur — celui-ci
+  // affiche les comptes avec des zéros de padding qui ne correspondent à aucun
+  // compte réel, même piège que HAGTACOS/COLMARDOZ) : le compte "AE" réel
+  // additionne A Emporter + BàE, le compte "SP" réel additionne BSP + Sur Place ;
+  // Deliveroo et UberEats sont entièrement exclus de la caisse. Pas de moteur
+  // 'otacos-taxes' ici : ALDN n'a pas de fichier "Opérations quotidiennes" séparé,
+  // tout est dans le seul rapport Taxes, d'où un adaptateur dédié.
+  // Piège trouvé en croisant l'API : le compte de TVA collectée à 20 % de la
+  // caisse (445712001) est DIFFÉRENT de celui d'Uber (44571009) — deux comptes
+  // distincts pour le même taux selon le canal, d'où la clé cashVat20 séparée.
+  aldn: {
+    id: 'aldn',
+    name: 'ALDN',
+    label: 'IT TRATTORIA',
+    mode: 'uber-and-cash',
+    cashAdapter: 'aldn-taxes',
+    uberJournal: '',
+    vatBreakdown: 'otacos-5.5-and-10',
+    expenseVat: 0.20,
+    uberEstablishments: [],
+    accounts: {
+      uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
+      uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
+      uberSales20: ['70116', 'VENTES UBEREATS 20%'], vat20: ['44571009', 'TVA collectée à 20%'],
+      commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
+      marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT'],
+      salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+      salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'],
+      salesSP20: ['701021', 'VENTES 20% SUR PLACE'], salesAE20: ['70102', 'VENTES 20% A EMPORTER'],
+      cashVat20: ['445712001', 'TVA collectée à 20% (caisse)'],
+      cash: ['531', 'CAISSE']
+    }
+  },
   // DOZ - Colmar : formule confirmée le 4 sept. 2026 par reconstitution du modèle
   // de l'expert-comptable, MAIS comptes corrigés le 7 sept. 2026 après croisement
   // avec l'écriture RÉELLEMENT postée dans Pennylane (API) : le tableur de l'expert

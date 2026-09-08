@@ -388,15 +388,45 @@ const profiles = {
   // ALDN — enseigne IT TRATTORIA (pas O'Tacos, mais même moteur Uber/TVA que la
   // famille O'Tacos). Seule société avec une part de ventes Uber à 20 % (alcool,
   // colonne Uber "TVA 3 sur les ventes") : comptes uberSales20/vat20 dédiés.
-  // Formule et TOUS les comptes confirmés le 7 sept. 2026 contre l'écriture
+  // Formule et TOUS les comptes Uber confirmés le 7 sept. 2026 contre l'écriture
   // RÉELLEMENT postée dans Pennylane de juillet 2026 (API), exacts au centime près.
-  aldn: otacosProfile({ id: 'aldn', name: 'ALDN', label: 'IT TRATTORIA', establishmentId: '', accounts: {
-    uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
-    uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
-    uberSales20: ['70116', 'VENTES UBEREATS 20%'], vat20: ['44571009', 'TVA collectée à 20%'],
-    commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
-    marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
-  } }),
+  //
+  // Caisse (cashAdapter 'aldn-taxes', voir app.js) : un seul fichier "Répartition
+  // des taux de TVA par emplacement", 3 taux x 6 canaux (A Emporter/BàE/BSP/
+  // Deliveroo/Sur Place/UberEats). Comptes confirmés le 8 sept. 2026 contre
+  // l'écriture "RECETTES 07.2026" RÉELLEMENT postée (API, pas le tableur — celui-ci
+  // affiche les comptes avec des zéros de padding qui ne correspondent à aucun
+  // compte réel, même piège que HAGTACOS/COLMARDOZ) : le compte "AE" réel
+  // additionne A Emporter + BàE, le compte "SP" réel additionne BSP + Sur Place ;
+  // Deliveroo et UberEats sont entièrement exclus de la caisse. Pas de moteur
+  // 'otacos-taxes' ici : ALDN n'a pas de fichier "Opérations quotidiennes" séparé,
+  // tout est dans le seul rapport Taxes, d'où un adaptateur dédié.
+  // Piège trouvé en croisant l'API : le compte de TVA collectée à 20 % de la
+  // caisse (445712001) est DIFFÉRENT de celui d'Uber (44571009) — deux comptes
+  // distincts pour le même taux selon le canal, d'où la clé cashVat20 séparée.
+  aldn: {
+    id: 'aldn',
+    name: 'ALDN',
+    label: 'IT TRATTORIA',
+    mode: 'uber-and-cash',
+    cashAdapter: 'aldn-taxes',
+    uberJournal: '',
+    vatBreakdown: 'otacos-5.5-and-10',
+    expenseVat: 0.20,
+    uberEstablishments: [],
+    accounts: {
+      uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
+      uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
+      uberSales20: ['70116', 'VENTES UBEREATS 20%'], vat20: ['44571009', 'TVA collectée à 20%'],
+      commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
+      marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT'],
+      salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+      salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'],
+      salesSP20: ['701021', 'VENTES 20% SUR PLACE'], salesAE20: ['70102', 'VENTES 20% A EMPORTER'],
+      cashVat20: ['445712001', 'TVA collectée à 20% (caisse)'],
+      cash: ['531', 'CAISSE']
+    }
+  },
   // DOZ - Colmar : formule confirmée le 4 sept. 2026 par reconstitution du modèle
   // de l'expert-comptable, MAIS comptes corrigés le 7 sept. 2026 après croisement
   // avec l'écriture RÉELLEMENT postée dans Pennylane (API) : le tableur de l'expert
@@ -500,14 +530,14 @@ function formatBytes(n){return n>1048576?`${(n/1048576).toFixed(1)} Mo`:`${Math.
 bindFile('#uber-file','#uber-zone','uber'); bindFile('#cash-file','#cash-zone','cash'); bindFile('#operations-file','#operations-zone','operations');
 function clearFile(key){const zone=$(`#${key}-zone`),input=$(`#${key}-file`),box=zone.querySelector('.chosen');state.files[key]=null;input.value='';zone.classList.remove('has-file');box.hidden=true}
 function setProfile(id){
-  profile=getProfile(id); const needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',dozCash=profile.cashAdapter==='doz-taxes';
+  profile=getProfile(id); const needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',dozCash=profile.cashAdapter==='doz-taxes',aldnCash=profile.cashAdapter==='aldn-taxes';
   clearFile('uber'); clearFile('cash'); clearFile('operations'); $('#cash-zone').hidden=!needsCash; $('#operations-zone').hidden=!otacosCash;
   $('#profile-state').textContent=needsCash?`${profile.name} · Uber + caisse validés`:`${profile.name} · Uber validé`;
-  $('#profile-help').textContent=needsCash?(otacosCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':dozCash?'Profil caisse : TVA 5,5 % / 10 %':'Profil caisse : CA Liquide / Solide'):(profile.vatBreakdown?'Profil actif : Uber seul · TVA 5,5 % et 10 %':'Profil actif : Uber seul');
+  $('#profile-help').textContent=needsCash?(otacosCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':dozCash?'Profil caisse : TVA 5,5 % / 10 %':aldnCash?'Profil caisse : TVA 5,5 % / 10 % / 20 % × sur place/à emporter':'Profil caisse : CA Liquide / Solide'):(profile.vatBreakdown?'Profil actif : Uber seul · TVA 5,5 % et 10 %':'Profil actif : Uber seul');
   $('#intro-note').textContent=needsCash?(otacosCash?"Déposez l'export Uber, le rapport Taxes et les Opérations quotidiennes du mois. Uber et Deliveroo sont retirés de la caisse ; aucune écriture Deliveroo n'est créée ici.":"Déposez les deux justificatifs du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération."):`Déposez l'export Uber du mois. L'outil applique les règles ${profile.name} et vérifie l'écriture avant génération.`;
   $('#uber-help').textContent=`Excel ou CSV · obligatoire pour ${profile.name}`;
-  $('#cash-help').textContent=(otacosCash||dozCash)?`Excel (.xlsx) · obligatoire pour ${profile.name}`:`PDF, Excel ou CSV · obligatoire pour ${profile.name}`;
-  $('#cash-zone em').textContent=otacosCash?"Le rapport Excel brut « Taxes » du logiciel de caisse, feuille « Reports », pour le mois concerné":dozCash?"Le rapport de taxes du logiciel de caisse (export Excel avec les onglets Revenus/TVA), pour le mois concerné":"Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)";
+  $('#cash-help').textContent=(otacosCash||dozCash||aldnCash)?`Excel (.xlsx) · obligatoire pour ${profile.name}`:`PDF, Excel ou CSV · obligatoire pour ${profile.name}`;
+  $('#cash-zone em').textContent=otacosCash?"Le rapport Excel brut « Taxes » du logiciel de caisse, feuille « Reports », pour le mois concerné":dozCash?"Le rapport de taxes du logiciel de caisse (export Excel avec les onglets Revenus/TVA), pour le mois concerné":aldnCash?"Le rapport Excel « Répartition des taux de TVA par emplacement » du logiciel de caisse, pour le mois concerné":"Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)";
   $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight(); resetPennylanePanel();
 }
 $('#company').addEventListener('change',e=>setProfile(e.target.value));
@@ -606,6 +636,7 @@ function lettersToIndex(s){let n=0;for(const c of s)n=n*26+c.charCodeAt(0)-64;re
 async function parseCash(file,operationsFile){
   if(profile.cashAdapter==='otacos-taxes') return parseCashOtacos(file,operationsFile);
   if(profile.cashAdapter==='doz-taxes') return parseCashDoz(file);
+  if(profile.cashAdapter==='aldn-taxes') return parseCashAldn(file);
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf'){
     const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;let text='';for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),content=await p.getTextContent();text+=' '+content.items.map(x=>x.str).join(' ')}return parseCashText(text);
@@ -699,6 +730,50 @@ async function parseCashDoz(file){
   const total=round(ht10+vat10+ht55+vat55);
   return {ht10:round(ht10),vat10:round(vat10),ht55:round(ht55),vat55:round(vat55),total,period:'',kind:'doz-taxes'};
 }
+const ALDN_MONTHS={janv:1,fevr:2,mars:3,avr:4,mai:5,juin:6,juil:7,aout:8,sept:9,oct:10,nov:11,dec:12};
+function extractAldnPeriod(text){
+  const m=text&&text.match(/au\s+\d{1,2}\s+([a-zà-ÿ]+)\.?\s+(\d{4})/i);if(!m)return '';
+  const num=ALDN_MONTHS[normalize(m[1]).slice(0,4)];return num?`${m[2]}-${String(num).padStart(2,'0')}`:'';
+}
+async function parseCashAldn(file){
+  // Rapport ALDN "Répartition des taux de TVA par emplacement" : un seul fichier,
+  // 6 canaux en colonnes (A Emporter, BàE, BSP, Deliveroo, Sur Place, UberEats) x
+  // 3 taux en lignes (5,5 / 10 / 20 %). Confirmé le 8 sept. 2026 contre l'écriture
+  // "RECETTES 07.2026" RÉELLEMENT postée (API) : le compte "AE" réel additionne
+  // A Emporter + BàE, le compte "SP" réel additionne BSP + Sur Place, Deliveroo et
+  // UberEats sont entièrement exclus de la caisse (UberEats a sa propre écriture,
+  // Deliveroo reste hors outil). Comptes de TVA partagés entre SP et AE pour
+  // chaque taux, comme le moteur otacos-taxes.
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(ext!=='xlsx') throw new Error('Le rapport de caisse ALDN doit être un fichier Excel (.xlsx).');
+  const rows=await parseXlsx(file,'repartition des taux');
+  const num=v=>typeof v==='number'?v:0;
+  const headerRowIndex=rows.findIndex(r=>normalize(r&&r[0])==='taux');
+  if(headerRowIndex<0) throw new Error('Ligne d\'en-tête "Taux" introuvable dans le rapport de caisse ALDN.');
+  const headerRow=rows[headerRowIndex],groupStarts={};
+  headerRow.forEach((cell,i)=>{const n=normalize(cell);
+    if(n==='a emporter')groupStarts.ae1=i;else if(n==='bae')groupStarts.ae2=i;
+    else if(n==='bsp')groupStarts.sp1=i;else if(n==='sur place')groupStarts.sp2=i;});
+  if([groupStarts.ae1,groupStarts.ae2,groupStarts.sp1,groupStarts.sp2].some(v=>v==null))
+    throw new Error('Colonnes "A Emporter" / "BàE" / "BSP" / "Sur Place" introuvables dans le rapport de caisse ALDN.');
+  const rates={};
+  for(let i=headerRowIndex+2;i<rows.length;i++){
+    const row=rows[i];if(!row)continue;
+    if(normalize(row[0])==='total')break;
+    const rate=Math.round(parseFloat(row[0])*10)/10;if(!Number.isFinite(rate))continue;
+    const ht=c=>num(row[c]),tax=c=>num(row[c+1]);
+    rates[rate]={aeHt:round(ht(groupStarts.ae1)+ht(groupStarts.ae2)),aeTax:round(tax(groupStarts.ae1)+tax(groupStarts.ae2)),
+      spHt:round(ht(groupStarts.sp1)+ht(groupStarts.sp2)),spTax:round(tax(groupStarts.sp1)+tax(groupStarts.sp2))};
+  }
+  const r55=rates[5.5],r10=rates[10],r20=rates[20];
+  if(!r55||!r10) throw new Error('Les taux 5,5 % et 10 % sont introuvables dans le rapport de caisse ALDN.');
+  const total=round(r55.aeHt+r55.aeTax+r55.spHt+r55.spTax+r10.aeHt+r10.aeTax+r10.spHt+r10.spTax+(r20?r20.aeHt+r20.aeTax+r20.spHt+r20.spTax:0));
+  const periodCell=rows.flat().find(v=>typeof v==='string'&&/p.riode du/i.test(v));
+  return {sp55:r55.spHt,ae55:r55.aeHt,vat55:round(r55.spTax+r55.aeTax),
+    sp10:r10.spHt,ae10:r10.aeHt,vat10:round(r10.spTax+r10.aeTax),
+    sp20:r20?r20.spHt:0,ae20:r20?r20.aeHt:0,vat20:r20?round(r20.spTax+r20.aeTax):0,
+    total,period:extractAldnPeriod(periodCell),kind:'aldn-taxes'};
+}
 
 function periodInfo(){const [y,m]=$('#period').value.split('-').map(Number);return {y,m,last:new Date(Date.UTC(y,m,0)),label:`${String(m).padStart(2,'0')}.${y}`}}
 function line(date,journal,account,label,debit=null,credit=null,vat=null){return {date,journal,account:account[0],accountLabel:account[1],label,debit,credit,vat}}
@@ -784,6 +859,11 @@ function buildRows(uber,cash){
       rows.push(line(date,'VT',a.salesHt55,cl,null,round(cash.ht55),.055),line(date,'VT',a.vat55,cl,null,round(cash.vat55)),
         line(date,'VT',a.salesHt10,cl,null,round(cash.ht10),.10),line(date,'VT',a.vat10,cl,null,round(cash.vat10)),
         line(date,'VT',a.cash,cl,cash.total));
+    }else if(profile.cashAdapter==='aldn-taxes'){
+      rows.push(line(date,'VT',a.salesSP55,cl,null,round(cash.sp55),.055),line(date,'VT',a.salesAE55,cl,null,round(cash.ae55),.055),line(date,'VT',a.vat55,cl,null,round(cash.vat55)),
+        line(date,'VT',a.salesSP10,cl,null,round(cash.sp10),.10),line(date,'VT',a.salesAE10,cl,null,round(cash.ae10),.10),line(date,'VT',a.vat10,cl,null,round(cash.vat10)));
+      if(cash.sp20>.004||cash.ae20>.004) rows.push(line(date,'VT',a.salesSP20,cl,null,round(cash.sp20),.20),line(date,'VT',a.salesAE20,cl,null,round(cash.ae20),.20),line(date,'VT',a.cashVat20,cl,null,round(cash.vat20)));
+      rows.push(line(date,'VT',a.cash,cl,cash.total));
     }else{
       rows.push(line(date,'VT',a.liquid,cl,null,cash.liquid.ht,profile.uberVat),line(date,'VT',a.vat10,cl,null,cash.liquid.vat),line(date,'VT',a.solid,cl,null,cash.solid.ht,profile.uberVat),line(date,'VT',a.vat10,cl,null,cash.solid.vat),line(date,'VT',a.alcohol,cl,null,cash.alcohol.ht,.20),line(date,'VT',a.vat20,cl,null,cash.alcohol.vat),line(date,'VT',a.cash,cl,cash.total));
     }
@@ -803,18 +883,19 @@ $('#process').addEventListener('click',async()=>{
     const unknown=profile.uberEstablishments.length?uber.establishments.filter(x=>!profile.uberEstablishments.includes(x)):[];if(unknown.length)errors.push(`Établissement Uber non reconnu pour ${profile.name} : ${unknown.join(', ')}.`);
     if(Math.abs(diff)>.01)errors.push(`Écriture déséquilibrée de ${money.format(Math.abs(diff))}.`);
     if(Math.abs(round(uber.total-(uber.payouts.reduce((s,[,v])=>s+v,0))))>.01)errors.push('Le total Uber ne correspond pas à la somme des versements.');
-    if(cash&&cash.kind!=='otacos-taxes'&&cash.kind!=='doz-taxes'){if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');if(Math.abs(round((cash.solid.ht+cash.solid.vat)-cash.solid.ttc))>.02)errors.push('La ligne caisse Solide ne se recalcule pas.');if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');if(cash.declaredTotal!=null&&Math.abs(round(cash.total-cash.declaredTotal))>.02)errors.push(`Le total des trois lignes caisse (${money.format(cash.total)}) ne correspond pas au total TTC du PDF (${money.format(cash.declaredTotal)}).`)}
+    if(cash&&cash.kind!=='otacos-taxes'&&cash.kind!=='doz-taxes'&&cash.kind!=='aldn-taxes'){if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');if(Math.abs(round((cash.solid.ht+cash.solid.vat)-cash.solid.ttc))>.02)errors.push('La ligne caisse Solide ne se recalcule pas.');if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');if(cash.declaredTotal!=null&&Math.abs(round(cash.total-cash.declaredTotal))>.02)errors.push(`Le total des trois lignes caisse (${money.format(cash.total)}) ne correspond pas au total TTC du PDF (${money.format(cash.declaredTotal)}).`)}
     renderResults(uber,cash,built,debit,credit,errors);
   }catch(e){errors.push(e.message||'Erreur inconnue.');renderErrors(errors)}finally{btn.querySelector('span').textContent="Générer l'aperçu";btn.disabled=!(state.files.uber&&(profile.mode==='uber-only'||(state.files.cash&&(profile.cashAdapter!=='otacos-taxes'||state.files.operations))))}
 });
 function renderResults(uber,cash,built,debit,credit,errors){
-  $('#results').hidden=false;$('#result-period').textContent=`${profile.name} · ${periodInfo().label}`;$('#cash-kpi').hidden=!cash;if(cash){$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=cash.kind==='otacos-taxes'?`HT ${money.format(cash.sp55.ht+cash.ae55.ht+cash.sp10.ht+cash.ae10.ht)} · TVA ${money.format(cash.sp55.tax+cash.ae55.tax+cash.sp10.tax+cash.ae10.tax)}`:cash.kind==='doz-taxes'?`HT ${money.format(cash.ht55+cash.ht10)} · TVA ${money.format(cash.vat55+cash.vat10)}`:`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`};$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
+  $('#results').hidden=false;$('#result-period').textContent=`${profile.name} · ${periodInfo().label}`;$('#cash-kpi').hidden=!cash;if(cash){$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=cash.kind==='otacos-taxes'?`HT ${money.format(cash.sp55.ht+cash.ae55.ht+cash.sp10.ht+cash.ae10.ht)} · TVA ${money.format(cash.sp55.tax+cash.ae55.tax+cash.sp10.tax+cash.ae10.tax)}`:cash.kind==='doz-taxes'?`HT ${money.format(cash.ht55+cash.ht10)} · TVA ${money.format(cash.vat55+cash.vat10)}`:cash.kind==='aldn-taxes'?`HT ${money.format(cash.sp55+cash.ae55+cash.sp10+cash.ae10+cash.sp20+cash.ae20)} · TVA ${money.format(cash.vat55+cash.vat10+cash.vat20)}`:`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`};$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
   const checks=[['Structure Uber reconnue',`${uber.rowCount} lignes · ${uber.payouts.length} versements`],['Société et période cohérentes',`${uber.establishments.join(', ')} · ${periodInfo().label}`]];
   if(profile.vatBreakdown==='5.5-and-10')checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % : ${money.format(Math.abs(uber.vat2))}`]);
   if(profile.vatBreakdown==='otacos-5.5-and-10'){const vat20=Math.abs(uber.vat3||0);checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat1)-vat20))}`+(vat20>.004?` · 20 % : ${money.format(vat20)}`:'')]);}
   if(profile.vatBreakdown==='doz-5.5-and-10')checks.push(['TVA Uber ventilée',`10 % : ${money.format(Math.abs(uber.vat2))} · 5,5 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat2)))}`]);
   if(cash&&cash.kind==='otacos-taxes'){checks.push(['Taxes et opérations quotidiennes rapprochées',`${money.format(cash.rawTotal)} TTC`],['Uber retiré de la caisse (Opérations quotidiennes)',money.format(cash.uberExcluded)],['Deliveroo retiré de la caisse',money.format(cash.deliverooExcluded)],['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55.ht+cash.ae55.ht)} HT · TVA ${money.format(cash.sp55.tax+cash.ae55.tax)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10.ht+cash.ae10.ht)} HT · TVA ${money.format(cash.sp10.tax+cash.ae10.tax)}`],['Total caisse hors Uber et Deliveroo',money.format(cash.total)]);}
   else if(cash&&cash.kind==='doz-taxes'){checks.push(['Caisse - 5,5 %',`${money.format(cash.ht55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 %',`${money.format(cash.ht10)} HT · TVA ${money.format(cash.vat10)}`],['Total caisse (hors plateformes de livraison)',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
+  else if(cash&&cash.kind==='aldn-taxes'){checks.push(['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55+cash.ae55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10+cash.ae10)} HT · TVA ${money.format(cash.vat10)}`]);if(cash.sp20>.004||cash.ae20>.004)checks.push(['Caisse - 20 % (SP + AE)',`${money.format(cash.sp20+cash.ae20)} HT · TVA ${money.format(cash.vat20)}`]);checks.push(['Total caisse hors Deliveroo et UberEats',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
   else if(cash)checks.push(['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`]);
   checks.push(['TVA recalculée',profile.vatBreakdown==='5.5-and-10'?'Uber 5,5 % / 10 % · Frais 20 %':'Uber 10 % · Frais 20 %'],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]);
   $('#check-list').innerHTML=checks.map(x=>`<div class="check-row"><b>✓</b><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');$('#check-badge').textContent=errors.length?'À corriger':`${checks.length} contrôles validés`;state.valid=!errors.length;renderRows();renderErrors(errors);$('#download').disabled=!state.valid;$('#download-status').textContent=state.valid?'Aperçu validé — fichier Excel prêt':'Création bloquée';$('#download-help').textContent=state.valid?`${state.rows.length} lignes comptables · à envoyer à l’expert-comptable ou à importer dans Pennylane`:'Corrigez les erreurs signalées puis régénérez l’aperçu.';setStep(state.valid?4:3);$('#results').scrollIntoView({behavior:'smooth',block:'start'});
