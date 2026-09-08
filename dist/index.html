@@ -1,99 +1,19 @@
 <!doctype html>
 <html lang="fr">
 <head>
+  <!-- Cette page GitHub Pages n'héberge plus l'outil : elle redirige vers le
+       déploiement Google Apps Script, qui est désormais la version de référence.
+       Ne pas resynchroniser ce fichier depuis public/index.html — l'outil complet
+       reste dans public/ (source du bundle Apps Script, voir apps-script/build-appsscript.mjs)
+       et dans les autres fichiers de dist/, gardés pour un retour en arrière rapide
+       si besoin (revenir à ce commit annule uniquement la redirection). -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Préparation contrôlée des imports de chiffre d'affaires Pennylane pour BMG." />
-  <title>BMG — Préparation Pennylane</title>
-  <link rel="stylesheet" href="styles.css?v=otacos-raw-20260907" />
-  <link rel="stylesheet" href="clarity.css" />
+  <meta http-equiv="refresh" content="0; url=https://script.google.com/a/macros/bmggroupe.fr/s/AKfycbz3AIVzpaMXtiZQsBezw4AvxsDXlgx5immgJSbwskY_JUeRr1mJB8wBUyagsZsJOYmxAw/exec" />
+  <title>Import CA Pennylane</title>
+  <script>location.replace('https://script.google.com/a/macros/bmggroupe.fr/s/AKfycbz3AIVzpaMXtiZQsBezw4AvxsDXlgx5immgJSbwskY_JUeRr1mJB8wBUyagsZsJOYmxAw/exec');</script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark">B</span><span>BMG</span><span class="brand-sep"></span><strong>Préparation Pennylane</strong></div>
-    <div class="privacy"><span></span> Traitement local et confidentiel</div>
-  </header>
-  <main>
-    <section class="intro">
-      <div><p class="eyebrow">IMPORT DE CHIFFRE D'AFFAIRES</p><h1>Préparer un nouvel import</h1><p id="intro-note">Déposez l'export Uber du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération.</p></div>
-      <div class="profile-pill"><span>Profil actif</span><strong id="profile-state">STRASGAME · Uber validé</strong></div>
-    </section>
-
-    <section class="panel flow-panel">
-      <div class="steps" aria-label="Progression">
-        <div class="step active"><b>1</b><span>Société</span></div><i></i><div class="step"><b>2</b><span>Fichiers</span></div><i></i><div class="step"><b>3</b><span>Aperçu</span></div><i></i><div class="step"><b>4</b><span>Écriture comptable</span></div>
-      </div>
-      <div class="form-grid">
-        <label class="field"><span>Société</span><select id="company">
-          <optgroup label="Crousty Game">
-            <option value="strasgame" selected>STRASGAME — Crousty Game Strasbourg</option>
-          </optgroup>
-          <optgroup label="Paradis du Fruit">
-            <option value="pdfk">PDFK — Paradis du Fruit Strasbourg Kléber</option>
-          </optgroup>
-          <optgroup label="O'Tacos">
-            <option value="hagtacos">HAGTACOS — O'Tacos Haguenau</option>
-            <option value="colmios">COLMIOS — O'Tacos Colmar</option>
-            <option value="fartacos">FARTACOS — O'Tacos Strasbourg</option>
-            <option value="epios">EPIOS — O'Tacos</option>
-            <option value="geipios">GEIPIOS — O'Tacos</option>
-            <option value="sarios">SARIOS — O'Tacos</option>
-            <option value="hautios">HAUTIOS — O'Tacos</option>
-            <option value="mulios">MULIOS — O'Tacos Mulhouse</option>
-            <option value="arios">ARIOS — O'Tacos</option>
-            <option value="vinios">VINIOS — O'Tacos</option>
-          </optgroup>
-          <optgroup label="DOZ">
-            <option value="colmardoz">COLMARDOZ — DOZ Colmar</option>
-            <option value="strasdoz">STRASDOZ — DOZ Strasbourg</option>
-          </optgroup>
-          <optgroup label="IT TRATTORIA">
-            <option value="aldn">ALDN — IT TRATTORIA</option>
-          </optgroup>
-        </select><small id="profile-help">Profil actif : Uber seul · TVA 5,5 % et 10 %</small></label>
-        <label class="field"><span>Période</span><input id="period" type="month" value="2026-08" /><small>Date d'écriture : dernier jour du mois</small></label>
-      </div>
-      <div class="drop-grid">
-        <label class="dropzone" id="uber-zone"><input id="uber-file" type="file" accept=".xlsx,.csv" /><span class="file-icon">1</span><strong>Export Uber Eats</strong><em>Le fichier détaillé des commandes du mois, téléchargé depuis Uber Eats Manager (Rapports → Exports)</em><small id="uber-help">Excel (.xlsx) ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
-        <label class="dropzone" id="cash-zone"><input id="cash-file" type="file" accept=".pdf,.xlsx,.csv" /><span class="file-icon">2</span><strong>Rapport de caisse</strong><em>Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)</em><small id="cash-help">PDF, Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
-        <label class="dropzone" id="operations-zone" hidden><input id="operations-file" type="file" accept=".xlsx" /><span class="file-icon">3</span><strong>Opérations quotidiennes</strong><em>Le rapport Excel brut « Opérations quotidiennes » du logiciel de caisse, pour le même mois</em><small id="operations-help">Excel (.xlsx) · obligatoire pour O'Tacos</small><div class="chosen" hidden></div></label>
-      </div>
-      <div id="preflight" class="preflight">
-        <div><span class="status-dot"></span><strong>Deux imports obligatoires pour PDFK</strong><small>Ajoutez l'import Uber et l'import caisse avant de créer l'écriture comptable.</small></div>
-        <button id="process" disabled><span>Générer l'aperçu</span><b>→</b></button>
-      </div>
-    </section>
-
-    <section id="results" class="results" hidden>
-      <div class="result-head"><div><p class="eyebrow">APERÇU ET VÉRIFICATION</p><h2>Aperçu prêt à vérifier</h2></div><span id="result-period"></span></div>
-      <div class="kpis">
-        <article id="cash-kpi"><span>CA caisse TTC</span><strong id="cash-total">—</strong><small id="cash-detail">Rapport caisse</small></article>
-        <article><span>CA Uber TTC net</span><strong id="uber-revenue">—</strong><small>Ventes − remboursements − promotions</small></article>
-        <article><span>Total écriture</span><strong id="entry-total">—</strong><small>Débits et crédits</small></article>
-      </div>
-      <div class="checks panel">
-        <div class="check-title"><h3>Contrôles avant génération</h3><span id="check-badge">En cours</span></div>
-        <div id="check-list"></div>
-      </div>
-      <div class="preview panel">
-        <div class="preview-title"><h3>Aperçu des écritures</h3><button id="toggle-rows">Afficher toutes les lignes</button></div>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Journal</th><th>Compte</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead><tbody id="rows"></tbody></table></div>
-      </div>
-      <div id="error-log" class="error-log" hidden><h3>Journal des erreurs</h3><ul></ul></div>
-      <div class="download-bar"><div><strong id="download-status">Validation requise</strong><small id="download-help">Vérifiez l'aperçu ci-dessus avant de télécharger l'écriture comptable.</small></div><button id="download" disabled>Télécharger l'écriture Excel</button></div>
-      <div id="pennylane-bar" class="pennylane-bar panel">
-        <div class="pennylane-head"><h3>Envoi direct à Pennylane <span class="beta-tag">bêta</span></h3><span id="pennylane-status">Aucun aperçu généré</span></div>
-        <p class="pennylane-note">Étape 1 : générez un aperçu (lecture seule, n'écrit rien). Étape 2 : vérifiez les comptes et montants, puis confirmez l'envoi — cette action crée réellement l'écriture dans Pennylane et n'est pas réversible depuis cet outil.</p>
-        <div id="pennylane-preview" class="pennylane-preview" hidden></div>
-        <div class="pennylane-actions">
-          <button id="pennylane-preview-btn" disabled>Générer l'aperçu</button>
-          <button id="pennylane-send-btn" disabled>Confirmer et envoyer à Pennylane</button>
-        </div>
-      </div>
-    </section>
-  </main>
-  <footer><span>BMG · Outil interne</span><span>Paradis du Fruit, Crousty Game, O'Tacos (10 sociétés), DOZ (2 sociétés), IT TRATTORIA · comptes à valider par l'expert-comptable chaque mois</span></footer>
-  <script src="vendor/jszip.min.js"></script>
-  <script type="module" src="app.js?v=doz-vat-rebuild-20260908"></script>
+  <p>Redirection vers <a href="https://script.google.com/a/macros/bmggroupe.fr/s/AKfycbz3AIVzpaMXtiZQsBezw4AvxsDXlgx5immgJSbwskY_JUeRr1mJB8wBUyagsZsJOYmxAw/exec">Import CA Pennylane</a>…</p>
 </body>
 </html>
