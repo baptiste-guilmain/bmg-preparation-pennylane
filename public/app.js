@@ -208,7 +208,10 @@ async function parseCashDoz(file){
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext!=='xlsx') throw new Error('Le rapport caisse DOZ doit être un fichier Excel (.xlsx).');
   const rows=await parseXlsx(file,'repartition du montant');
-  // Onglet "TVA - Répartition du montant de..." : Taux de TVA | Montant TVA | | HT | | TTC.
+  // Deux formats existent dans les exports DOZ :
+  // - complet : Taux de TVA | Montant TVA | | HT | | TTC ;
+  // - brut : Taux de TVA | Montant TVA uniquement.
+  // Dans le format brut, le CA est nécessairement reconstitué depuis la TVA.
   // Pas de découpage sur place/à emporter chez DOZ (POS différent des O'Tacos),
   // juste les deux taux. Validé cellule par cellule contre l'écriture RÉELLEMENT
   // postée dans Pennylane ("RECETTES 07.2026", comptes 701021/7010255, comptes
@@ -224,8 +227,14 @@ async function parseCashDoz(file){
   let ht10=null,vat10=null,ht55=null,vat55=null;
   rows.forEach(r=>{
     const rate=Math.round(parseFloat(r&&r[0])||0);
-    if(rate===1000){ht10=num(r[3]);vat10=num(r[1])}
-    else if(rate===550){ht55=num(r[3]);vat55=num(r[1])}
+    if(rate===1000){
+      vat10=num(r[1]);
+      ht10=typeof r[3]==='number'&&r[3]!==0?num(r[3]):round(vat10/.10);
+    }
+    else if(rate===550){
+      vat55=num(r[1]);
+      ht55=typeof r[3]==='number'&&r[3]!==0?num(r[3]):round(vat55/.055);
+    }
   });
   if(ht10==null||ht55==null) throw new Error('Les lignes TVA 10 % et 5,5 % sont introuvables dans l\'onglet "TVA - Répartition du montant de".');
   const total=round(ht10+vat10+ht55+vat55);
