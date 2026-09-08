@@ -274,14 +274,24 @@ async function parseCashAldn(file){
   // chaque taux, comme le moteur otacos-taxes.
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext!=='xlsx') throw new Error('Le rapport de caisse ALDN doit être un fichier Excel (.xlsx).');
-  const rows=await parseXlsx(file,'repartition des taux');
   const num=v=>typeof v==='number'?v:0;
-  const headerRowIndex=rows.findIndex(r=>normalize(r&&r[0])==='taux');
-  if(headerRowIndex<0) throw new Error('Ligne d\'en-tête "Taux" introuvable dans le rapport de caisse ALDN.');
-  const headerRow=rows[headerRowIndex],groupStarts={};
-  headerRow.forEach((cell,i)=>{const n=normalize(cell);
-    if(n==='a emporter')groupStarts.ae1=i;else if(n==='bae')groupStarts.ae2=i;
-    else if(n==='bsp')groupStarts.sp1=i;else if(n==='sur place')groupStarts.sp2=i;});
+  // L'export brut du logiciel de caisse regroupe PLUSIEURS rapports "Répartition
+  // des taux de TVA..." dans un même classeur (par type, par date, par
+  // emplacement...) : impossible de viser un nom d'onglet fixe. On cherche donc,
+  // sur tous les onglets, celui qui a une ligne "Taux" ET une colonne
+  // "A Emporter" (seul le rapport "par emplacement" a cette colonne).
+  const sheets=await parseXlsxAllSheets(file);
+  let rows=null,headerRowIndex=null,groupStarts=null;
+  for(const sheet of sheets){
+    const idx=sheet.rows.findIndex(r=>normalize(r&&r[0])==='taux');
+    if(idx<0)continue;
+    const headerRow=sheet.rows[idx],starts={};
+    headerRow.forEach((cell,i)=>{const n=normalize(cell);
+      if(n==='a emporter')starts.ae1=i;else if(n==='bae')starts.ae2=i;
+      else if(n==='bsp')starts.sp1=i;else if(n==='sur place')starts.sp2=i;});
+    if([starts.ae1,starts.ae2,starts.sp1,starts.sp2].every(v=>v!=null)){rows=sheet.rows;headerRowIndex=idx;groupStarts=starts;break;}
+  }
+  if(rows==null) throw new Error('Rapport "Répartition des taux de TVA par emplacement" introuvable dans le classeur de caisse ALDN.');
   if([groupStarts.ae1,groupStarts.ae2,groupStarts.sp1,groupStarts.sp2].some(v=>v==null))
     throw new Error('Colonnes "A Emporter" / "BàE" / "BSP" / "Sur Place" introuvables dans le rapport de caisse ALDN.');
   const rates={};
