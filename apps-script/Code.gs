@@ -2,6 +2,6 @@
  * uniquement les utilisateurs du domaine Google Workspace. */
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('BMG — Préparation Pennylane')
+    .setTitle('Import CA Pennylane')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
