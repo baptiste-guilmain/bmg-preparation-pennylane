@@ -3,8 +3,9 @@
 // validée cellule par cellule sur le modèle HAGTACOS de juillet 2026.
 // `cashAccounts`, quand fourni, active le mode caisse O'Tacos (exports bruts
 // « Taxes » et « Opérations quotidiennes » : TVA 5,5 %/10 % x SP/AE). L'outil
-// retire Uber depuis son export détaillé et Deliveroo depuis les opérations avant
-// de générer la caisse ; voir cashAdapter 'otacos-taxes' dans app.js.
+// retire les totaux Uber et Deliveroo enregistrés dans les Opérations quotidiennes
+// avant de générer la caisse ; l'écriture Uber reste calculée depuis son export
+// détaillé. Voir cashAdapter 'otacos-taxes' dans app.js.
 function otacosProfile({ id, name, label, establishmentId, accounts, cashAccounts }) {
   return {
     id,

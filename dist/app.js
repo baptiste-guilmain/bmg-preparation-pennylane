@@ -144,8 +144,8 @@ async function parseXlsx(file,sheetNameMatch){
 }
 function lettersToIndex(s){let n=0;for(const c of s)n=n*26+c.charCodeAt(0)-64;return n-1}
 
-async function parseCash(file,operationsFile,uberRevenue){
-  if(profile.cashAdapter==='otacos-taxes') return parseCashOtacos(file,operationsFile,uberRevenue);
+async function parseCash(file,operationsFile){
+  if(profile.cashAdapter==='otacos-taxes') return parseCashOtacos(file,operationsFile);
   if(profile.cashAdapter==='doz-taxes') return parseCashDoz(file);
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf'){
@@ -167,14 +167,16 @@ function parseCashText(text){
   const totalMatch=clean.match(/([0-9 .]+[,\.]\d{2})\s+([0-9 .]+[,\.]\d{2})\s+CA HT\s+CA TTC/i);const declaredTotal=totalMatch?amount(totalMatch[2]):null;
   return {liquid,solid,alcohol,total:round(liquid.ttc+solid.ttc+alcohol.ttc),declaredTotal,period};
 }
-async function parseCashOtacos(file,operationsFile,uberRevenue){
+async function parseCashOtacos(file,operationsFile){
   const ext=file.name.split('.').pop().toLowerCase(),operationsExt=operationsFile?.name.split('.').pop().toLowerCase();
   if(ext!=='xlsx'||operationsExt!=='xlsx') throw new Error('Pour O’Tacos, fournissez les deux fichiers Excel bruts : « Taxes » et « Opérations quotidiennes ».');
   const [rows,operationsRows]=await Promise.all([parseXlsx(file),parseXlsx(operationsFile)]);
   // Les rapports bruts de caisse incluent Uber Eats et Deliveroo. Ces deux canaux
-  // sont comptabilisés séparément : Uber depuis son export détaillé, Deliveroo
-  // manuellement hors de cet outil. Ils sont donc tous deux retirés de la ligne
-  // 10 % à emporter avant de générer l'écriture de caisse.
+  // sont comptabilisés séparément : Uber via son export détaillé, Deliveroo
+  // manuellement hors de cet outil. Pour la CAISSE, la base à retirer est le total
+  // Uber enregistré par le logiciel de caisse dans « Opérations quotidiennes ».
+  // Il peut différer du total de l'export Uber (promotions et ajustements) : cette
+  // distinction est confirmée par l'expert-comptable sur HAGTACOS, août 2026.
   const num=v=>typeof v==='number'?v:0;
   const found={};
   rows.forEach(r=>{const label=normalize(r&&r[0]);if(label.indexOf('t v a')===0) found[label]={ttc:num(r[1]),ht:num(r[4]),tax:num(r[2])}});
@@ -185,7 +187,14 @@ async function parseCashOtacos(file,operationsFile,uberRevenue){
   if(!operationHt||!operationTax) throw new Error('Les totaux « Ventes nettes de TVA » et « Taxes recouvrées » sont introuvables dans les Opérations quotidiennes.');
   const operationsTotal=round(num(operationHt[1])+num(operationTax[1])),deliverooRow=operationsRows.find(r=>normalize(r&&r[0])==='deliveroo');
   if(Math.abs(rawTotal-operationsTotal)>.02) throw new Error(`Les rapports Taxes et Opérations quotidiennes ne concordent pas (${money.format(rawTotal)} contre ${money.format(operationsTotal)} TTC).`);
-  const uberTtc=round(uberRevenue);
+  // Le rapport comporte parfois deux lignes de présentation « Uber eats » et une
+  // ligne de total « UBER EATS ». Seule cette dernière sert au retraitement caisse.
+  const uberCashTotals=[...new Set(operationsRows
+    .filter(r=>String(r&&r[0]||'').trim()==='UBER EATS'&&num(r[1])>0)
+    .map(r=>round(num(r[1]))))];
+  if(!uberCashTotals.length) throw new Error('Le total « UBER EATS » est introuvable dans les Opérations quotidiennes.');
+  if(uberCashTotals.length>1) throw new Error(`Plusieurs totaux « UBER EATS » différents sont présents dans les Opérations quotidiennes (${uberCashTotals.map(money.format).join(', ')}).`);
+  const uberTtc=uberCashTotals[0];
   const deliverooTtc=deliverooRow?round(num(deliverooRow[1])*1.10):0,platformsTtc=round(uberTtc+deliverooTtc);
   if(uberTtc<0||platformsTtc>rawAe10.ttc+.02) throw new Error(`Uber et Deliveroo (${money.format(platformsTtc)}) ne peuvent pas être retirés de la ligne 10 % à emporter (${money.format(rawAe10.ttc)}).`);
   const ae10Ttc=round(rawAe10.ttc-platformsTtc),ae10={ttc:ae10Ttc,ht:round(ae10Ttc/1.10),tax:round(ae10Ttc-round(ae10Ttc/1.10))};
@@ -290,7 +299,12 @@ function buildRows(uber,cash){
   // en juillet 2026 les porte au compte marketing 623204 sous ce libellé. On
   // rapproche ainsi les versements Uber sans modifier le chiffre d'affaires.
   const uberDebit=round(rows.reduce((sum,r)=>sum+(r.debit||0),0)),uberCredit=round(rows.reduce((sum,r)=>sum+(r.credit||0),0)),settlementGap=round(uberCredit-uberDebit);
-  if(profile.id==='hagtacos'&&Math.abs(settlementGap)>.01) rows.push(line(date,journal,a.marketing,'Écart de règlement non significatif',settlementGap>0?settlementGap:null,settlementGap<0?Math.abs(settlementGap):null));
+  if(profile.id==='hagtacos'&&Math.abs(settlementGap)>.01){
+    // L'écart est communiqué TTC par Uber. L'expert-comptable demande donc de
+    // ressortir la TVA à 20 %, plutôt que de le laisser intégralement en 623204.
+    const gapTtc=Math.abs(settlementGap),gapHt=round(gapTtc/(1+profile.expenseVat)),gapVat=round(gapTtc-gapHt),isDebit=settlementGap>0;
+    rows.push(line(date,journal,a.marketing,'Écart de règlement non significatif',isDebit?gapHt:null,isDebit?null:gapHt,profile.expenseVat),line(date,journal,a.deductibleVat,'Écart de règlement non significatif',isDebit?gapVat:null,isDebit?null:gapVat));
+  }
   if(profile.mode==='uber-and-cash'){
     if(profile.cashAdapter==='otacos-taxes'){
       rows.push(line(date,'VT',a.salesSP55,cl,null,round(cash.sp55.ht),.055),line(date,'VT',a.salesAE55,cl,null,round(cash.ae55.ht),.055),line(date,'VT',a.vat55,cl,null,round(cash.sp55.tax+cash.ae55.tax)),
@@ -311,7 +325,7 @@ $('#process').addEventListener('click',async()=>{
   const btn=$('#process');btn.disabled=true;btn.querySelector('span').textContent="Génération de l'aperçu…";const errors=[];resetPennylanePanel();
   try{
     if(!$('#period').value)throw new Error('Sélectionnez une période.');if(state.files.uber.size>25e6||(state.files.cash&&state.files.cash.size>25e6)||(state.files.operations&&state.files.operations.size>25e6))throw new Error('Un fichier dépasse la limite de 25 Mo.');
-    const uber=await parseUber(state.files.uber),uberRevenue=round(uber.sales+uber.refund+uber.promo),cash=profile.mode==='uber-and-cash'?await parseCash(state.files.cash,state.files.operations,uberRevenue):null,built=buildRows(uber,cash);state.rows=built.rows;
+    const uber=await parseUber(state.files.uber),cash=profile.mode==='uber-and-cash'?await parseCash(state.files.cash,state.files.operations):null,built=buildRows(uber,cash);state.rows=built.rows;
     const debit=round(state.rows.reduce((s,r)=>s+(r.debit||0),0)),credit=round(state.rows.reduce((s,r)=>s+(r.credit||0),0)),diff=round(debit-credit);
     const selected=$('#period').value;
     if(uber.primaryPeriod!==selected)errors.push(`La période principale Uber détectée (${uber.primaryPeriod||'inconnue'}) ne correspond pas à ${selected}.`);
@@ -329,7 +343,7 @@ function renderResults(uber,cash,built,debit,credit,errors){
   if(profile.vatBreakdown==='5.5-and-10')checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % : ${money.format(Math.abs(uber.vat2))}`]);
   if(profile.vatBreakdown==='otacos-5.5-and-10'){const vat20=Math.abs(uber.vat3||0);checks.push(['TVA Uber ventilée',`5,5 % : ${money.format(Math.abs(uber.vat1))} · 10 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat1)-vat20))}`+(vat20>.004?` · 20 % : ${money.format(vat20)}`:'')]);}
   if(profile.vatBreakdown==='doz-5.5-and-10')checks.push(['TVA Uber ventilée',`10 % : ${money.format(Math.abs(uber.vat2))} · 5,5 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat2)))}`]);
-  if(cash&&cash.kind==='otacos-taxes'){checks.push(['Taxes et opérations quotidiennes rapprochées',`${money.format(cash.rawTotal)} TTC`],['Uber retiré de la caisse',money.format(cash.uberExcluded)],['Deliveroo retiré de la caisse',money.format(cash.deliverooExcluded)],['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55.ht+cash.ae55.ht)} HT · TVA ${money.format(cash.sp55.tax+cash.ae55.tax)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10.ht+cash.ae10.ht)} HT · TVA ${money.format(cash.sp10.tax+cash.ae10.tax)}`],['Total caisse hors Uber et Deliveroo',money.format(cash.total)]);}
+  if(cash&&cash.kind==='otacos-taxes'){checks.push(['Taxes et opérations quotidiennes rapprochées',`${money.format(cash.rawTotal)} TTC`],['Uber retiré de la caisse (Opérations quotidiennes)',money.format(cash.uberExcluded)],['Deliveroo retiré de la caisse',money.format(cash.deliverooExcluded)],['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55.ht+cash.ae55.ht)} HT · TVA ${money.format(cash.sp55.tax+cash.ae55.tax)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10.ht+cash.ae10.ht)} HT · TVA ${money.format(cash.sp10.tax+cash.ae10.tax)}`],['Total caisse hors Uber et Deliveroo',money.format(cash.total)]);}
   else if(cash&&cash.kind==='doz-taxes'){checks.push(['Caisse - 5,5 %',`${money.format(cash.ht55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 %',`${money.format(cash.ht10)} HT · TVA ${money.format(cash.vat10)}`],['Total caisse (hors plateformes de livraison)',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
   else if(cash)checks.push(['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`]);
   checks.push(['TVA recalculée',profile.vatBreakdown==='5.5-and-10'?'Uber 5,5 % / 10 % · Frais 20 %':'Uber 10 % · Frais 20 %'],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]);

@@ -19,9 +19,12 @@ sociétés O'Tacos, validé cellule par cellule sur le modèle mensuel HAGTACOS 
 - Ventes 5,5 % = (TVA 1 sur les ventes) / 0,055
 - Ventes 10 % HT = [(Ventes TTC + Facturation rétroactive TTC + Offres TTC) − TTC de la
   part 5,5 %] / 1,10
-- Une colonne Uber optionnelle, « Ajustement marketing (TVA incluse) », vient équilibrer
-  l'écriture chez O'Tacos (crédit si positive) — absente chez PDFK/STRASGAME, elle est
-  ignorée automatiquement si le fichier ne la contient pas.
+- Chez HAGTACOS, l'écart de règlement Uber est un montant TTC : il est ventilé au taux de
+  20 % entre le compte marketing et la TVA déductible. Les autres profils ne génèrent pas
+  cette ligne sans règle validée par l'expert-comptable.
+- Pour les caisses O'Tacos, le total Uber retiré de la ligne 10 % à emporter provient des
+  « Opérations quotidiennes » (ligne `UBER EATS`) ; l'écriture Uber elle-même reste
+  calculée depuis l'export détaillé Uber.
 
 Chaque société n'a que ses **comptes** et son **identifiant Uber** à définir via
 `otacosProfile()` dans `public/profiles.js` — les comptes diffèrent réellement d'une
