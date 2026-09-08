@@ -81,7 +81,7 @@ async function parseUber(file){
     // d'autres (HAGTACOS, STRASGAME, PDFK). Absentes => 0, jamais bloquant.
     vat1Adjustment:col(['TVA 1 sur les ajustements','TVA1 sur les ajustements']),vat2Adjustment:col(['TVA 2 sur les ajustements','TVA2 sur les ajustements']),
     vat1Offer:col(['TVA 1 sur les offres','TVA 1 sur les rabais']),vat2Offer:col(['TVA 2 sur les offres','TVA 2 sur les rabais']),
-    offerFee:col(["Frais d'utilisation de l'offre"]),offerVat:col(["TVA sur les frais d'utilisation de l'offre"]),marketingAdjustment:col(['Ajustement marketing (TVA incluse)']),voucher:col(['Titre-restaurant','Bon de réduction-restaurant']),commission:col(['Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)','Frais de service Uber facturés au commerçant après application de la réduction','Frais de mise en marché après rabais (TVA en sus)']),commissionVat:col(['TVA sur les frais de service de la Marketplace / frais de mise en relation après offre','TVA sur les frais de service Uber','TVA sur les frais de mise en marché après rabais']),other:col(['Autres paiements (TVA incluse)','Paiements divers (TVA comprise)']),total:col(['Montant total','Versement total']),payout:col(['Date du versement'])};
+    offerFee:col(["Frais d'utilisation de l'offre"]),offerVat:col(["TVA sur les frais d'utilisation de l'offre"]),marketingAdjustment:col(['Ajustement marketing (TVA incluse)','Ajustement de marketing (TVA comprise)']),voucher:col(['Titre-restaurant','Bon de réduction-restaurant']),commission:col(['Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)','Frais de service Uber facturés au commerçant après application de la réduction','Frais de mise en marché après rabais (TVA en sus)']),commissionVat:col(['TVA sur les frais de service de la Marketplace / frais de mise en relation après offre','TVA sur les frais de service Uber','TVA sur les frais de mise en marché après rabais']),other:col(['Autres paiements (TVA incluse)','Paiements divers (TVA comprise)']),total:col(['Montant total','Versement total']),payout:col(['Date du versement'])};
   // "Titre-restaurant" est absent de l'export Uber quand l'établissement n'accepte
   // pas les titres-restaurant dématérialisés (constaté sur VINIOS, juillet 2026) :
   // colonne optionnelle, jamais bloquante, comme les autres colonnes ci-dessus.
@@ -294,16 +294,18 @@ function buildRows(uber,cash){
     rows.push(line(date,journal,a.marketing,ul,isCredit?null:adjHt,isCredit?adjHt:null,profile.expenseVat),line(date,journal,a.deductibleVat,ul,isCredit?null:adjVat,isCredit?adjVat:null));
   }
   uber.payouts.sort((x,y)=>x[0]==='À venir'?1:y[0]==='À venir'?-1:x[0].split('/').reverse().join('').localeCompare(y[0].split('/').reverse().join(''))).forEach(([d,v])=>rows.push(line(date,journal,a.uberSettlement,`${ul} ${d==='À venir'?'a venir':d}`,Math.abs(v))));
-  // Les exports Uber peuvent inclure de petits ajustements de règlement qui ne
-  // sont pas ventilés par colonne. Pour HAGTACOS, l'écriture réellement postée
-  // en juillet 2026 les porte au compte marketing 623204 sous ce libellé. On
-  // rapproche ainsi les versements Uber sans modifier le chiffre d'affaires.
+  // Les exports Uber peuvent inclure de petits écarts de règlement qui ne sont
+  // pas ventilés par colonne. HAGTACOS a une règle validée par l'expert pour un
+  // écart significatif ; sur les autres O'Tacos, seuls les écarts d'arrondi
+  // inférieurs ou égaux à 1 EUR sont automatiquement rapprochés.
   const uberDebit=round(rows.reduce((sum,r)=>sum+(r.debit||0),0)),uberCredit=round(rows.reduce((sum,r)=>sum+(r.credit||0),0)),settlementGap=round(uberCredit-uberDebit);
-  if(profile.id==='hagtacos'&&Math.abs(settlementGap)>.01){
-    // L'écart est communiqué TTC par Uber. L'expert-comptable demande donc de
-    // ressortir la TVA à 20 %, plutôt que de le laisser intégralement en 623204.
+  const isOtacos=profile.vatBreakdown==='otacos-5.5-and-10',canReconcileGap=profile.id==='hagtacos'||(isOtacos&&Math.abs(settlementGap)<=1);
+  if(canReconcileGap&&Math.abs(settlementGap)>.01){
+    // L'écart est communiqué TTC. Il est ventilé à 20 % entre marketing et TVA
+    // déductible afin de préserver la base HT et l'équilibre de l'écriture.
     const gapTtc=Math.abs(settlementGap),gapHt=round(gapTtc/(1+profile.expenseVat)),gapVat=round(gapTtc-gapHt),isDebit=settlementGap>0;
-    rows.push(line(date,journal,a.marketing,'Écart de règlement non significatif',isDebit?gapHt:null,isDebit?null:gapHt,profile.expenseVat),line(date,journal,a.deductibleVat,'Écart de règlement non significatif',isDebit?gapVat:null,isDebit?null:gapVat));
+    const gapLabel=profile.id==='hagtacos'?'Écart de règlement non significatif':'Écart d’arrondi de règlement Uber';
+    rows.push(line(date,journal,a.marketing,gapLabel,isDebit?gapHt:null,isDebit?null:gapHt,profile.expenseVat),line(date,journal,a.deductibleVat,gapLabel,isDebit?gapVat:null,isDebit?null:gapVat));
   }
   if(profile.mode==='uber-and-cash'){
     if(profile.cashAdapter==='otacos-taxes'){
