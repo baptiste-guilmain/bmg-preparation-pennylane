@@ -34,9 +34,50 @@ comptes après le premier déploiement.
 
 ## Mise à jour
 
-Après une modification de `public/`, exécuter `node apps-script/build-appsscript.mjs`,
-puis créer une nouvelle version du déploiement Apps Script. Tester l'URL `/dev`
-avant de publier l'URL `/exec`. Une vérification GitHub Actions
+Après une modification de `public/`, exécuter `node apps-script/build-appsscript.mjs`
+pour régénérer `Index.html`. Une vérification GitHub Actions
 (`.github/workflows/apps-script-check.yml`) échoue si `Index.html` n'a pas été
 régénéré après un changement dans `public/` — un rappel pour ne pas oublier
 cette étape avant de pousser.
+
+### Publier sur Apps Script avec clasp (recommandé)
+
+Le dossier est relié au projet existant via `apps-script/.clasp.json`
+(le fichier ne contient que l'ID du script, pas de secret). Depuis
+`apps-script/` :
+
+```
+clasp push --force
+clasp deploy -i AKfycbz3AIVzpaMXtiZQsBezw4AvxsDXlgx5immgJSbwskY_JUeRr1mJB8wBUyagsZsJOYmxAw -d "description courte"
+```
+
+`clasp push` envoie `Code.gs`, `Index.html` et `appsscript.json`. `clasp deploy -i`
+crée une nouvelle version sur le déploiement EXISTANT (même URL `/exec`, ne pas
+omettre `-i` sinon un nouveau déploiement avec une nouvelle URL est créé).
+
+Piège rencontré une fois : `clasp deploy -i` sans le bloc `"webapp"` explicite
+dans `appsscript.json` peut faire basculer le déploiement en type
+**Bibliothèque** au lieu d'**Application Web**, cassant l'URL `/exec`
+(« Impossible d'ouvrir le fichier »). Le manifeste de ce dossier contient donc
+toujours :
+```json
+"webapp": { "access": "DOMAIN", "executeAs": "USER_DEPLOYING" }
+```
+Si l'URL casse après un `clasp deploy`, vérifier dans **Déployer > Gérer les
+déploiements** que la section affichée est bien « Application Web » et pas
+« Bibliothèque ».
+
+`clasp` doit être connecté au compte `baptiste.guilmain@bmggroupe.fr` (pas un
+Gmail personnel) — vérifier avec `clasp show-authorized-user`, et l'API
+Google Apps Script doit être activée sur CE compte précis (bien vérifier
+lequel des comptes est actif avant de toucher à
+`script.google.com/home/usersettings`, le compte par défaut du navigateur
+est souvent le mauvais).
+
+### Publier manuellement (sans clasp)
+
+1. Créer un projet sur https://script.new avec le compte Workspace choisi.
+2. Ajouter ou remplacer `Code.gs`, `Index.html` et le manifeste
+   `appsscript.json` par les fichiers de ce dossier.
+3. Dans **Déployer > Gérer les déploiements > icône crayon**, choisir
+   « Nouvelle version », puis Déployer.
