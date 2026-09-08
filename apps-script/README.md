@@ -24,8 +24,19 @@ technique pérenne. Ne pas déployer depuis un compte Gmail personnel.
 Le script ne requiert pas de permission Drive ou Pennylane. Les restrictions
 d'accès Workspace sont la barrière d'accès à l'outil.
 
+## Vérification d'accès
+
+L'accès « toute personne de l'organisation BMG » se base sur le domaine
+`@bmggroupe.fr`, pas sur la licence : les comptes Cloud Identity Free
+(Virgile, Théo, Amélie) doivent donc pouvoir ouvrir l'URL `/exec` sans
+licence Workspace payante. À confirmer en se connectant avec un de ces
+comptes après le premier déploiement.
+
 ## Mise à jour
 
 Après une modification de `public/`, exécuter `node apps-script/build-appsscript.mjs`,
 puis créer une nouvelle version du déploiement Apps Script. Tester l'URL `/dev`
-avant de publier l'URL `/exec`.
+avant de publier l'URL `/exec`. Une vérification GitHub Actions
+(`.github/workflows/apps-script-check.yml`) échoue si `Index.html` n'a pas été
+régénéré après un changement dans `public/` — un rappel pour ne pas oublier
+cette étape avant de pousser.
