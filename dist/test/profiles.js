@@ -257,11 +257,23 @@ export const profiles = {
     salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
     salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE']
   } }),
-  vinios: otacosProfile({ id: 'vinios', name: 'VINIOS', label: "O'Tacos", establishmentId: '', accounts: {
+  // Uber + Caisse confirmés le 10 sept. 2026 contre les écritures RÉELLEMENT postées
+  // (UBEREATS 07.2026 et RECETTES 07.2026) : tous les comptes collent exactement,
+  // schéma caisse standard O'Tacos. L'écart de 23,34 € vu en juillet (signalé comme
+  // anomalie non expliquée) n'en est pas une : l'expert-comptable a simplement posté
+  // deux lignes sur le même compte marketing (623205 : 246,58 € + 23,34 €) au lieu
+  // d'une seule — le total du compte correspond exactement à notre calcul.
+  vinios: otacosProfile({ id: 'vinios', name: 'VINIOS', label: "O'Tacos", establishmentId: '401010879', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
     marketing: ['623205', 'MARKETING UBER EATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+  }, cashAccounts: {
+    salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'],
+    salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'],
+    salesAE10: ['70112', 'VENTES 10% A EMPORTER'],
+    cash: ['531', 'CAISSE']
   } }),
   // ALDN — enseigne IT TRATTORIA (pas O'Tacos, mais même moteur Uber/TVA que la
   // famille O'Tacos). Seule société avec une part de ventes Uber à 20 % (alcool,
