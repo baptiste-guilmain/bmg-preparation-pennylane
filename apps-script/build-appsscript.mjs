@@ -11,16 +11,19 @@ const css = `${styles}\n${clarity}`;
 const body = html.match(/<body>([\s\S]*)<\/body>/i)?.[1];
 if (!body) throw new Error('Corps HTML introuvable.');
 
+// Depuis le 10 sept. 2026, le panneau "Envoi direct à Pennylane" (bêta) est
+// INCLUS tel quel dans le bundle Apps Script — c'est le seul environnement où
+// il fonctionne réellement (google.script.run appelle Code.gs). Sur le lien
+// de test GitHub Pages, app.js détecte l'absence de google.script.run et
+// cache le panneau tout seul (voir PENNYLANE_AVAILABLE) : rien à retirer ici.
+
 const cleanBody = body
-  .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-  .replace(/<div id="pennylane-bar"[\s\S]*?<\/div>\s*<\/section>/i, '</section>');
+  .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
 const workspaceProfiles = profiles.replace('export const profiles', 'const profiles').replace('export const getProfile', 'const getProfile');
 const workspaceApp = app
   .replace("import * as pdfjsLib from './vendor/pdf.min.mjs';\n", '')
   .replace("import { getProfile } from './profiles.js';\n", '')
-  .replace("pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';", "pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';")
-  .replace("  $('#pennylane-preview-btn').disabled=!state.valid;\n", '')
-  .replace(/\/\/ Envoi direct à Pennylane \(bêta\)[\s\S]*?(?=async function makeXlsx\()/, 'function resetPennylanePanel(){}\n');
+  .replace("pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';", "pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';");
 
 const output = `<!doctype html>
 <html lang="fr"><head><base target="_top"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>${css}</style></head>

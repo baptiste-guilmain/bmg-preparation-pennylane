@@ -60,7 +60,7 @@ async function pennylaneFetch(token, path, options = {}) {
 async function resolveJournalId(token, code, cache) {
   if (cache.journals.has(code)) return cache.journals.get(code);
   const filter = JSON.stringify([{ field: 'code', operator: 'eq', value: code }]);
-  const payload = await pennylaneFetch(token, `/journals?filter=${encodeURIComponent(filter)}&per_page=5`);
+  const payload = await pennylaneFetch(token, `/journals?filter=${encodeURIComponent(filter)}&limit=5`);
   const items = Array.isArray(payload) ? payload : (payload.items || payload.data || []);
   const found = items.find(j => j.code === code) || items[0];
   if (!found) throw new PennylaneRequestError(`Journal "${code}" introuvable dans Pennylane pour cette société.`, 422);
@@ -71,7 +71,7 @@ async function resolveJournalId(token, code, cache) {
 async function resolveAccountId(token, number, cache) {
   if (cache.accounts.has(number)) return cache.accounts.get(number);
   const filter = JSON.stringify([{ field: 'number', operator: 'eq', value: String(number) }]);
-  const payload = await pennylaneFetch(token, `/ledger_accounts?filter=${encodeURIComponent(filter)}&per_page=5`);
+  const payload = await pennylaneFetch(token, `/ledger_accounts?filter=${encodeURIComponent(filter)}&limit=5`);
   const items = Array.isArray(payload) ? payload : (payload.items || payload.data || []);
   const found = items.find(a => a.number === String(number)) || items[0];
   if (!found) throw new PennylaneRequestError(`Compte "${number}" introuvable dans le plan comptable Pennylane de cette société.`, 422);

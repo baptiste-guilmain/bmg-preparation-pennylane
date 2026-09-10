@@ -572,14 +572,27 @@ function renderErrors(errors){const box=$('#error-log');box.hidden=!errors.lengt
 
 $('#download').addEventListener('click',async()=>{if(!state.valid)return;const blob=await makeXlsx(state.rows);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${profile.name}_CA_UBER_${$('#period').value.replace('-','_')}_Pennylane.xlsx`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
 
-// Envoi direct à Pennylane (bêta) : le navigateur ne voit jamais les jetons API,
-// tout passe par des fonctions Netlify côté serveur (netlify/functions/). Un
-// aperçu (lecture seule) est obligatoire avant tout envoi réel, et toute
-// régénération de l'écriture (nouveau traitement, changement de société) annule
-// l'aperçu en cours pour éviter d'envoyer des données périmées.
+// Envoi direct à Pennylane (bêta) : le navigateur ne voit jamais les jetons
+// API, tout passe par des fonctions Apps Script côté serveur (Code.gs), jamais
+// exposées en HTTP public — appelées via google.script.run, disponible
+// uniquement quand la page tourne réellement dans Apps Script (pas sur le
+// lien de test GitHub Pages, où le panneau reste donc caché : voir
+// PENNYLANE_AVAILABLE). Un aperçu (lecture seule) est obligatoire avant tout
+// envoi réel, et toute régénération de l'écriture (nouveau traitement,
+// changement de société) annule l'aperçu en cours pour éviter d'envoyer des
+// données périmées. Un garde-fou côté serveur bloque aussi l'envoi si une
+// écriture du même libellé existe déjà pour la période (anti-doublon de CA).
 // --- 8. Envoi direct à Pennylane (bêta) -------------------------------------
+const PENNYLANE_AVAILABLE=typeof google!=='undefined'&&!!google.script&&!!google.script.run;
+if(!PENNYLANE_AVAILABLE) $('#pennylane-bar').hidden=true;
+function scriptRun(fnName,...args){
+  return new Promise((resolve,reject)=>{
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fnName](...args);
+  });
+}
 function resetPennylanePanel(){
   pennylanePayload=null;
+  if(!PENNYLANE_AVAILABLE)return;
   const box=$('#pennylane-preview');box.hidden=true;box.innerHTML='';
   $('#pennylane-send-btn').disabled=true;
   $('#pennylane-status').textContent='Aucun aperçu généré';
@@ -600,35 +613,31 @@ function renderPennylanePreview(preview){
     return `<div class="entry-title">${esc(e.label)} · débit ${money.format(e.debitTotal)} = crédit ${money.format(e.creditTotal)}</div><table><thead><tr><th>Compte</th><th>Libellé compte</th><th>Libellé ligne</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead><tbody>${rows}</tbody></table>`;
   }).join('');
 }
-$('#pennylane-preview-btn').addEventListener('click',async()=>{
+if(PENNYLANE_AVAILABLE)$('#pennylane-preview-btn').addEventListener('click',async()=>{
   if(!state.valid)return;
   const btn=$('#pennylane-preview-btn'),prev=btn.textContent;btn.disabled=true;btn.textContent="Génération de l'aperçu…";$('#pennylane-status').textContent='';
   try{
     const entries=groupRowsForPennylane();
-    const resp=await fetch('/.netlify/functions/pennylane-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({companyId:profile.id,entries})});
-    const data=await resp.json();
-    if(!resp.ok)throw new Error(data.error||`Erreur ${resp.status}`);
+    const preview=await scriptRun('pennylanePreview',profile.id,entries);
     pennylanePayload={companyId:profile.id,entries};
-    renderPennylanePreview(data.preview);
+    renderPennylanePreview(preview);
     $('#pennylane-send-btn').disabled=false;
     $('#pennylane-status').textContent='Aperçu généré — vérifiez les comptes et montants avant de confirmer.';
   }catch(e){
     resetPennylanePanel();
-    $('#pennylane-status').textContent=`Erreur : ${e.message}`;
+    $('#pennylane-status').textContent=`Erreur : ${e.message||e}`;
   }finally{btn.disabled=!state.valid;btn.textContent=prev}
 });
-$('#pennylane-send-btn').addEventListener('click',async()=>{
+if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()=>{
   if(!pennylanePayload)return;
   if(!confirm(`Confirmer l'envoi réel de ${pennylanePayload.entries.length} écriture(s) dans Pennylane pour ${profile.name} ? Cette action crée l'écriture directement et n'est pas réversible depuis cet outil.`))return;
   const btn=$('#pennylane-send-btn'),prev=btn.textContent;btn.disabled=true;btn.textContent='Envoi en cours…';
   try{
-    const resp=await fetch('/.netlify/functions/pennylane-post',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...pennylanePayload,confirm:true})});
-    const data=await resp.json();
-    if(!resp.ok)throw new Error(data.error||`Erreur ${resp.status}`);
-    $('#pennylane-status').textContent=`${data.created.length} écriture(s) créée(s) dans Pennylane.`;
+    const created=await scriptRun('pennylanePost',pennylanePayload.companyId,pennylanePayload.entries,true);
+    $('#pennylane-status').textContent=`${created.length} écriture(s) créée(s) dans Pennylane.`;
     $('#pennylane-preview-btn').disabled=true;pennylanePayload=null;btn.disabled=true;
   }catch(e){
-    $('#pennylane-status').textContent=`Échec de l'envoi : ${e.message}`;
+    $('#pennylane-status').textContent=`Échec de l'envoi : ${e.message||e}`;
     btn.disabled=false;
   }finally{btn.textContent=prev}
 });
