@@ -203,17 +203,25 @@ async function parseCashOtacos(file,operationsFile){
   const rawTotal=round(sp55.ttc+ae55.ttc+sp10.ttc+rawAe10.ttc);
   const operationHt=operationsRows.find(r=>normalize(r&&r[0])==='ventes nettes de tva'),operationTax=operationsRows.find(r=>normalize(r&&r[0])==='taxes recouvrees');
   if(!operationHt||!operationTax) throw new Error('Les totaux « Ventes nettes de TVA » et « Taxes recouvrées » sont introuvables dans les Opérations quotidiennes.');
-  const operationsTotal=round(num(operationHt[1])+num(operationTax[1])),deliverooRow=operationsRows.find(r=>normalize(r&&r[0])==='deliveroo');
+  const operationsTotal=round(num(operationHt[1])+num(operationTax[1]));
   if(Math.abs(rawTotal-operationsTotal)>.02) throw new Error(`Les rapports Taxes et Opérations quotidiennes ne concordent pas (${money.format(rawTotal)} contre ${money.format(operationsTotal)} TTC).`);
-  // Le rapport comporte parfois deux lignes de présentation « Uber eats » et une
-  // ligne de total « UBER EATS ». Seule cette dernière sert au retraitement caisse.
-  const uberCashTotals=[...new Set(operationsRows
-    .filter(r=>String(r&&r[0]||'').trim()==='UBER EATS'&&num(r[1])>0)
-    .map(r=>round(num(r[1]))))];
-  if(!uberCashTotals.length) throw new Error('Le total « UBER EATS » est introuvable dans les Opérations quotidiennes.');
-  if(uberCashTotals.length>1) throw new Error(`Plusieurs totaux « UBER EATS » différents sont présents dans les Opérations quotidiennes (${uberCashTotals.map(money.format).join(', ')}).`);
-  const uberTtc=uberCashTotals[0];
-  const deliverooTtc=deliverooRow?round(num(deliverooRow[1])*1.10):0,platformsTtc=round(uberTtc+deliverooTtc);
+  // Le rapport comporte plusieurs lignes candidates pour « UBER EATS »/« DELIVEROO » :
+  // une répartition par canal de commande (montant HT-like, table du haut) et le
+  // dernier tableau du rapport, « Exécuter le rapport sur le sujet Moyen de paiement/
+  // support » (montant TTC réellement encaissé). Seul CE DERNIER TABLEAU fait foi —
+  // consigne explicite de l'expert-comptable (Marion, 10 sept. 2026) : « Faut prendre
+  // toujours le dernier tableau », après une écriture fausse sur FARTACOS où le montant
+  // Uber exclu venait de la mauvaise ligne. On prend donc systématiquement la DERNIÈRE
+  // occurrence de la ligne dans le fichier, telle quelle en TTC (jamais x1,10 — piège
+  // similaire trouvé et corrigé le 9 sept. 2026 sur COLMIOS juillet).
+  const cashPaymentTotal=label=>{
+    const matches=operationsRows.filter(r=>String(r&&r[0]||'').trim()===label&&num(r[1])>0);
+    if(!matches.length) return undefined;
+    return round(num(matches[matches.length-1][1]));
+  };
+  const uberTtc=cashPaymentTotal('UBER EATS');
+  if(uberTtc==null) throw new Error('Le total « UBER EATS » est introuvable dans les Opérations quotidiennes.');
+  const deliverooTtc=cashPaymentTotal('DELIVEROO')||0,platformsTtc=round(uberTtc+deliverooTtc);
   if(uberTtc<0||platformsTtc>rawAe10.ttc+.02) throw new Error(`Uber et Deliveroo (${money.format(platformsTtc)}) ne peuvent pas être retirés de la ligne 10 % à emporter (${money.format(rawAe10.ttc)}).`);
   const ae10Ttc=round(rawAe10.ttc-platformsTtc),ae10={ttc:ae10Ttc,ht:round(ae10Ttc/1.10),tax:round(ae10Ttc-round(ae10Ttc/1.10))};
   const total=round(sp55.ttc+ae55.ttc+sp10.ttc+ae10.ttc);
