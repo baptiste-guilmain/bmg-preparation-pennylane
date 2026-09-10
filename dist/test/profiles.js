@@ -90,6 +90,12 @@ export const profiles = {
   // exclue). Comptes identiques au schéma O'Tacos/ALDN (701051/701052/70111/
   // 70112/44571006/44571008/531), confirmés exacts au centime contre
   // l'écriture RECETTES 07.2026 réellement postée le 8 sept. 2026.
+  // Répartition Uber 5,5 %/10 % corrigée le 10 sept. 2026 : passage à la méthode
+  // "par différence" (comme les autres O'Tacos) + vat1/vat2 bruts (rawVatOnly, voir
+  // parseUber dans app.js) — la colonne "TVA X sur les ajustements" de cet export
+  // capture en fait la TVA sur les remboursements, pas un ajustement de prix.
+  // Vérifié contre l'écriture UBEREATS 07.2026 réellement postée (API) : écart résiduel
+  // de quelques dizaines de centimes (contre 26-32 € avant), comptes déjà tous exacts.
   strasgame: {
     id: 'strasgame',
     name: 'STRASGAME',
@@ -97,7 +103,8 @@ export const profiles = {
     mode: 'uber-and-cash',
     cashAdapter: 'strasgame-retraitements',
     uberJournal: 'VT',
-    vatBreakdown: '5.5-and-10',
+    vatBreakdown: 'otacos-5.5-and-10',
+    rawVatOnly: true,
     expenseVat: 0.20,
     uberEstablishments: [],
     accounts: {

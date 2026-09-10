@@ -99,10 +99,19 @@ async function parseUber(file){
   const periodCounts=new Map();data.forEach(r=>{const p=monthValue(r[ix.orderDate]);if(p)periodCounts.set(p,(periodCounts.get(p)||0)+1)});
   const periods=[...periodCounts.keys()],primaryPeriod=[...periodCounts.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
   const vatSum=k=>ix[k]<0?0:sum(k);
+  // Sur certains exports Uber (constaté sur STRASGAME, août 2026), la colonne visée par
+  // l'alias "TVA X sur les ajustements" est en réalité « TVA X sur les ajustements liés
+  // à des erreurs de commande » — c'est-à-dire la TVA sur les REMBOURSEMENTS, pas un
+  // vrai ajustement de prix commerçant. L'inclure fausse la ventilation 5,5 %/10 % de
+  // plusieurs dizaines d'euros. profile.rawVatOnly (activé uniquement pour STRASGAME
+  // pour l'instant, pour ne pas risquer de régresser COLMIOS/DOZ dont le format de
+  // colonne diffère) utilise vat1/vat2 tels quels, sans Adjustment ni Offer.
+  const vat1Extra=profile.rawVatOnly?0:vatSum('vat1Adjustment')+vatSum('vat1Offer');
+  const vat2Extra=profile.rawVatOnly?0:vatSum('vat2Adjustment')+vatSum('vat2Offer');
   return {sales:sum('sales'),refund:sum('refund'),promo:sum('promo'),
     vat3:vatSum('vat3'),
-    vat1:round(vatSum('vat1')+vatSum('vat1Adjustment')+vatSum('vat1Offer')),
-    vat2:round(vatSum('vat2')+vatSum('vat2Adjustment')+vatSum('vat2Offer')),
+    vat1:round(vatSum('vat1')+vat1Extra),
+    vat2:round(vatSum('vat2')+vat2Extra),
     offerFee:sum('offerFee'),offerVat:sum('offerVat'),marketingAdjustment:ix.marketingAdjustment<0?0:sum('marketingAdjustment'),voucher:sum('voucher'),commission:sum('commission'),commissionVat:sum('commissionVat'),other:sum('other'),total:sum('total'),payouts:[...payouts].filter(([,v])=>Math.abs(v)>.004),establishments,periods,primaryPeriod,rowCount:data.length};
 }
 function amount(v){
