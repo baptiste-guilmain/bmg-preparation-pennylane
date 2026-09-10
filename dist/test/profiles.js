@@ -384,4 +384,22 @@ export const profiles = {
   })
 };
 
-export const getProfile = id => profiles[id] || null;
+// État de validation par société — mis à jour au fil des mois à mesure que les
+// comptes/formules sont croisés contre l'API Pennylane ou confirmés par
+// l'expert-comptable. Un seul endroit à modifier plutôt que de toucher aux 15
+// profils : source unique pour le badge du menu déroulant et le bandeau
+// "Profil actif". 'validated' = comptes et formule vérifiés contre une écriture
+// réelle ; 'pending' = corrigé de notre côté, en attente d'une confirmation
+// externe (expert-comptable) avant d'être considéré définitivement clos.
+export const PROFILE_STATUS = {
+  strasgame: 'validated', pdfk: 'validated', hagtacos: 'validated', aldn: 'validated',
+  colmardoz: 'validated', strasdoz: 'validated',
+  vinios: 'validated', geipios: 'validated', sarios: 'validated', hautios: 'validated',
+  mulios: 'validated', arios: 'validated', epios: 'validated',
+  colmios: 'pending', fartacos: 'pending',
+};
+
+export const getProfile = id => {
+  const p = profiles[id];
+  return p ? { ...p, status: PROFILE_STATUS[id] || 'pending' } : null;
+};

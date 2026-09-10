@@ -1,3 +1,18 @@
+// =============================================================================
+// BMG — Préparation Pennylane
+// Plan du fichier (sections repérables en cherchant "// ===" dans l'éditeur) :
+//   1. Setup / état global
+//   2. Formulaire (dépôt de fichiers, sélection société/période)
+//   3. Lecture des fichiers Uber (CSV/XLSX)
+//   4. Moteur de lecture XLSX générique (partagé par tous les parseurs caisse)
+//   5. Moteurs de caisse par société (un par format de rapport POS)
+//   6. Construction de l'écriture comptable (lignes débit/crédit)
+//   7. Affichage des résultats (contrôles, aperçu, erreurs)
+//   8. Envoi direct à Pennylane (bêta, lecture seule + confirmation explicite)
+//   9. Export Excel (écriture comptable téléchargeable)
+// =============================================================================
+
+// --- 1. Setup / état global -------------------------------------------------
 import * as pdfjsLib from './vendor/pdf.min.mjs';
 import { getProfile } from './profiles.js';
 pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
@@ -12,6 +27,7 @@ let profile = getProfile('strasgame');
 let state={files:{uber:null,cash:null,operations:null}, rows:[], allShown:false, valid:false};
 let pennylanePayload=null;
 
+// --- 2. Formulaire (dépôt de fichiers, sélection société/période) ----------
 function bindFile(inputSel,zoneSel,key){
   const input=$(inputSel), zone=$(zoneSel);
   input.addEventListener('change',()=>setFile(input.files[0],zone,key));
@@ -43,7 +59,8 @@ function clearFile(key){const zone=$(`#${key}-zone`),input=$(`#${key}-file`),box
 function setProfile(id){
   profile=getProfile(id); const needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',dozCash=profile.cashAdapter==='doz-taxes',aldnCash=profile.cashAdapter==='aldn-taxes',strasgameCash=profile.cashAdapter==='strasgame-retraitements';
   clearFile('uber'); clearFile('cash'); clearFile('operations'); $('#cash-zone').hidden=!needsCash; $('#operations-zone').hidden=!otacosCash;
-  $('#profile-state').textContent=needsCash?`${profile.name} · Uber + caisse validés`:`${profile.name} · Uber validé`;
+  const pending=profile.status==='pending';$('.profile-pill').classList.toggle('pending',pending);
+  $('#profile-state').textContent=(needsCash?`${profile.name} · Uber + caisse validés`:`${profile.name} · Uber validé`)+(pending?' · en attente de confirmation':'');
   $('#profile-help').textContent=needsCash?(otacosCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':dozCash?'Profil caisse : TVA 5,5 % / 10 %':aldnCash?'Profil caisse : TVA 5,5 % / 10 % / 20 % × sur place/à emporter':strasgameCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':'Profil caisse : CA Liquide / Solide'):(profile.vatBreakdown?'Profil actif : Uber seul · TVA 5,5 % et 10 %':'Profil actif : Uber seul');
   $('#intro-note').textContent=needsCash?(otacosCash?"Déposez l'export Uber, le rapport Taxes et les Opérations quotidiennes du mois. Uber et Deliveroo sont retirés de la caisse ; aucune écriture Deliveroo n'est créée ici.":"Déposez les deux justificatifs du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération."):`Déposez l'export Uber du mois. L'outil applique les règles ${profile.name} et vérifie l'écriture avant génération.`;
   $('#uber-help').textContent=`Excel ou CSV · obligatoire pour ${profile.name}`;
@@ -54,6 +71,7 @@ function setProfile(id){
 $('#company').addEventListener('change',e=>setProfile(e.target.value));
 setProfile('strasgame');
 
+// --- 3. Lecture des fichiers Uber (CSV/XLSX) --------------------------------
 async function parseUber(file){
   const ext=file.name.split('.').pop().toLowerCase();
   let records;
@@ -133,6 +151,7 @@ function excelDate(v){return new Date(Date.UTC(1899,11,30)+Math.round(v)*8640000
 function frDate(d){return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`}
 function monthValue(v){const d=dateValue(v),m=d.match(/\d{2}\/(\d{2})\/(\d{4})/);return m?`${m[2]}-${m[1]}`:''}
 
+// --- 4. Moteur de lecture XLSX générique (partagé par les parseurs caisse) -
 function parseDelimited(text){
   const sep=(text.split('\n')[0].match(/;/g)||[]).length>(text.split('\n')[0].match(/,/g)||[]).length?';':','; const rows=[];let row=[],cell='',q=false;
   for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(q&&text[i+1]==='"'){cell+='"';i++}else q=!q}else if(c===sep&&!q){row.push(cell);cell=''}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell=''}else cell+=c} if(cell||row.length){row.push(cell);rows.push(row)}return rows;
@@ -169,6 +188,7 @@ async function parseXlsxAllSheets(file){
 }
 function lettersToIndex(s){let n=0;for(const c of s)n=n*26+c.charCodeAt(0)-64;return n-1}
 
+// --- 5. Moteurs de caisse par société (un par format de rapport POS) -------
 async function parseCash(file,operationsFile){
   if(profile.cashAdapter==='otacos-taxes') return parseCashOtacos(file,operationsFile);
   if(profile.cashAdapter==='doz-taxes') return parseCashDoz(file);
@@ -413,6 +433,7 @@ async function parseCashStrasgame(file){
     total,period:'',kind:'strasgame-retraitements'};
 }
 
+// --- 6. Construction de l'écriture comptable (lignes débit/crédit) ---------
 function periodInfo(){const [y,m]=$('#period').value.split('-').map(Number);return {y,m,last:new Date(Date.UTC(y,m,0)),label:`${String(m).padStart(2,'0')}.${y}`}}
 function line(date,journal,account,label,debit=null,credit=null,vat=null){return {date,journal,account:account[0],accountLabel:account[1],label,debit,credit,vat}}
 function buildRows(uber,cash){
@@ -529,6 +550,7 @@ $('#process').addEventListener('click',async()=>{
     renderResults(uber,cash,built,debit,credit,errors);
   }catch(e){errors.push(e.message||'Erreur inconnue.');renderErrors(errors)}finally{btn.querySelector('span').textContent="Générer l'aperçu";btn.disabled=!(state.files.uber&&(profile.mode==='uber-only'||(state.files.cash&&(profile.cashAdapter!=='otacos-taxes'||state.files.operations))))}
 });
+// --- 7. Affichage des résultats (contrôles, aperçu, erreurs) ---------------
 function renderResults(uber,cash,built,debit,credit,errors){
   $('#results').hidden=false;$('#result-period').textContent=`${profile.name} · ${periodInfo().label}`;$('#cash-kpi').hidden=!cash;if(cash){$('#cash-total').textContent=money.format(cash.total);$('#cash-detail').textContent=cash.kind==='otacos-taxes'?`HT ${money.format(cash.sp55.ht+cash.ae55.ht+cash.sp10.ht+cash.ae10.ht)} · TVA ${money.format(cash.sp55.tax+cash.ae55.tax+cash.sp10.tax+cash.ae10.tax)}`:cash.kind==='doz-taxes'?`HT ${money.format(cash.ht55+cash.ht10)} · TVA ${money.format(cash.vat55+cash.vat10)}`:cash.kind==='aldn-taxes'?`HT ${money.format(cash.sp55+cash.ae55+cash.sp10+cash.ae10+cash.sp20+cash.ae20)} · TVA ${money.format(cash.vat55+cash.vat10+cash.vat20)}`:cash.kind==='strasgame-retraitements'?`HT ${money.format(cash.sp55+cash.ae55+cash.sp10+cash.ae10)} · TVA ${money.format(cash.vat55+cash.vat10)}`:`HT ${money.format(cash.liquid.ht+cash.solid.ht+cash.alcohol.ht)} · TVA ${money.format(cash.liquid.vat+cash.solid.vat+cash.alcohol.vat)}`};$('#uber-revenue').textContent=money.format(built.revenue);$('#entry-total').textContent=money.format(debit);
   const checks=[['Structure Uber reconnue',`${uber.rowCount} lignes · ${uber.payouts.length} versements`],['Société et période cohérentes',`${uber.establishments.join(', ')} · ${periodInfo().label}`]];
@@ -555,6 +577,7 @@ $('#download').addEventListener('click',async()=>{if(!state.valid)return;const b
 // aperçu (lecture seule) est obligatoire avant tout envoi réel, et toute
 // régénération de l'écriture (nouveau traitement, changement de société) annule
 // l'aperçu en cours pour éviter d'envoyer des données périmées.
+// --- 8. Envoi direct à Pennylane (bêta) -------------------------------------
 function resetPennylanePanel(){
   pennylanePayload=null;
   const box=$('#pennylane-preview');box.hidden=true;box.innerHTML='';
@@ -609,6 +632,7 @@ $('#pennylane-send-btn').addEventListener('click',async()=>{
     btn.disabled=false;
   }finally{btn.textContent=prev}
 });
+// --- 9. Export Excel (écriture comptable téléchargeable) -------------------
 async function makeXlsx(rows){
   const headers=['Date','Code Journal','Numéro de compte','Libellé de compte','Libellé de ligne','Taux de TVA du compte','Code pays du compte','Débit et/ou Crédit','Crédit'];const data=[headers,...rows.map(r=>[r.date,r.journal,r.account,r.accountLabel,r.label,r.vat??'', '',r.debit??'',r.credit??''])];
   const cell=(v,ref,row,col)=>{if(row&&col===0)return `<c r="${ref}" s="4"><v>${excelSerialFromFr(v)}</v></c>`;if(typeof v==='number')return `<c r="${ref}" s="${row?2:0}"><v>${v}</v></c>`;return `<c r="${ref}" t="inlineStr" s="${row?1:3}"><is><t>${xmlEsc(v)}</t></is></c>`};
