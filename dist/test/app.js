@@ -331,25 +331,69 @@ async function parseCashAldn(file){
 }
 
 async function parseCashStrasgame(file){
-  // Rapport de caisse Zelty "RETRAITEMENTS" de STRASGAME (Crousty Game) : classeur
-  // à plusieurs onglets dont le nom n'est pas garanti stable d'un mois sur
-  // l'autre (vu "Feuil1" sur le fichier de juillet). On cherche donc la section
-  // "Ecritures" sur TOUS les onglets plutot que de viser un nom d'onglet fixe.
-  // Cette section donne Sur place/A emporter x 5,5 %/10 % DEJA calculee (les
-  // "bornes" Belorder et le Zelty caisse/télécommande y sont inclus, la
-  // Livraison — Uber Eats + Deliveroo — en est exclue, Uber ayant sa propre
-  // écriture et Deliveroo restant hors outil). Confirmé le 8 sept. 2026 exact
-  // au centime contre l'écriture RECETTES 07.2026 réellement postée (API).
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext!=='xlsx') throw new Error('Le rapport de caisse STRASGAME doit être un fichier Excel (.xlsx).');
   const sheets=await parseXlsxAllSheets(file);
   const num=v=>typeof v==='number'?v:0;
+  const parseRate=v=>{const s=String(v||'').replace(',','.').replace('%','').trim();const f=parseFloat(s);return Number.isFinite(f)?Math.round(f*10)/10:null};
+  for(const sheet of sheets){
+    const originIdx=sheet.rows.findIndex(r=>normalize(r&&r[0])==='origine de la commande');
+    if(originIdx<0)continue;
+    // Nouveau rapport caisse "CA Strasgame" (à partir d'août 2026, remplace le
+    // rapport "RETRAITEMENTS"/section "Ecritures" — Baptiste confirmé le 10 sept.
+    // 2026 que ce sera désormais le SEUL format fourni). Deux tableaux : « Origine
+    // de la commande » (Belorder/Uber Eats/Deliveroo/Zelty Caisse × taux) et « Mode
+    // de consommation » (Livraison/Sur place/À emporter × taux). Aucun des deux ne
+    // donne directement « caisse hors plateformes, ventilée Sur place/À emporter » :
+    // les bornes Belorder sont un mélange des deux modes (confirmé par Baptiste,
+    // c'est aussi tout ce dont disposait l'expert-comptable pour construire le
+    // rapport "RETRAITEMENTS" de juillet). On calcule donc le total hors Uber
+    // Eats/Deliveroo par taux via « Origine » (Belorder + Zelty Caisse — la seule
+    // donnée exacte disponible), puis on le répartit Sur place/À emporter au
+    // prorata du ratio du tableau « Mode de consommation » hors Livraison — la
+    // meilleure approximation possible avec les données fournies.
+    const originByRate={};
+    for(let i=originIdx+1;i<sheet.rows.length;i++){
+      const row=sheet.rows[i];if(!row||!row[0])break;
+      const label=normalize(row[0]),rate=parseRate(row[1]);if(rate==null)continue;
+      if(label==='belorder'||label==='zelty caisse'){
+        const o=originByRate[rate]||(originByRate[rate]={ht:0,tax:0});
+        o.ht=round(o.ht+num(row[2]));o.tax=round(o.tax+num(row[4]));
+      }
+    }
+    const modeIdx=sheet.rows.findIndex(r=>normalize(r&&r[0])==='mode de consommation');
+    if(modeIdx<0)continue;
+    const modeByRate={};
+    for(let i=modeIdx+1;i<sheet.rows.length;i++){
+      const row=sheet.rows[i];if(!row||!row[0])break;
+      const label=normalize(row[0]),rate=parseRate(row[1]);if(rate==null)continue;
+      if(label==='sur place'||label==='a emporter'){
+        const m=modeByRate[rate]||(modeByRate[rate]={sp:0,ae:0});
+        if(label==='sur place')m.sp=round(m.sp+num(row[2]));else m.ae=round(m.ae+num(row[2]));
+      }
+    }
+    const o55=originByRate[5.5],o10=originByRate[10],m55=modeByRate[5.5],m10=modeByRate[10];
+    if(!o55||!o10||!m55||!m10) continue;
+    const split=(origin,mode)=>{
+      const ratio=(mode.sp+mode.ae)>.004?mode.sp/(mode.sp+mode.ae):.5;
+      const spHt=round(origin.ht*ratio),aeHt=round(origin.ht-spHt);
+      const spTax=round(origin.tax*ratio),aeTax=round(origin.tax-spTax);
+      return {spHt,aeHt,spTax,aeTax};
+    };
+    const s55=split(o55,m55),s10=split(o10,m10);
+    const total=round(s55.spHt+s55.spTax+s55.aeHt+s55.aeTax+s10.spHt+s10.spTax+s10.aeHt+s10.aeTax);
+    return {sp55:s55.spHt,ae55:s55.aeHt,vat55:round(s55.spTax+s55.aeTax),
+      sp10:s10.spHt,ae10:s10.aeHt,vat10:round(s10.spTax+s10.aeTax),
+      total,period:'',kind:'strasgame-retraitements'};
+  }
+  // Ancien rapport Zelty "RETRAITEMENTS" (section "Ecritures", Sur place/A emporter
+  // déjà calculés) — gardé en repli si jamais ce format était encore fourni un mois.
   let rows=null,startIdx=null;
   for(const sheet of sheets){
     const idx=sheet.rows.findIndex(r=>normalize(r&&r[0])==='ecritures');
     if(idx>=0){rows=sheet.rows;startIdx=idx;break;}
   }
-  if(rows==null) throw new Error('Section "Ecritures" introuvable dans le rapport de caisse STRASGAME.');
+  if(rows==null) throw new Error('Rapport de caisse STRASGAME non reconnu (ni « Origine de la commande », ni section « Ecritures »).');
   const values={};let mode=null;
   for(let i=startIdx+1;i<rows.length;i++){
     const row=rows[i];if(!row)continue;
