@@ -8,6 +8,17 @@
 .dropzone em{max-width:88%;line-height:1.45}
 .file-icon{border-radius:50%;font-size:15px}
 
+/* O'Tacos : 3 fichiers requis (Uber + Taxes + Opérations quotidiennes) au lieu de
+   2 — passage à trois colonnes plus compactes pour tenir sur une seule ligne,
+   activé par app.js (setProfile) via la classe .triple sur .drop-grid. */
+.drop-grid.triple{grid-template-columns:repeat(3,1fr);gap:14px}
+.drop-grid.triple .dropzone{min-height:150px;padding:16px 14px}
+.drop-grid.triple .file-icon{width:30px;height:30px;font-size:12px;margin-bottom:8px}
+.drop-grid.triple .dropzone strong{font-size:13px}
+.drop-grid.triple .dropzone em{font-size:11px;line-height:1.4;max-width:100%}
+.drop-grid.triple .dropzone small{font-size:9px;margin-top:6px}
+@media(max-width:900px){.drop-grid.triple{grid-template-columns:1fr}}
+
 /* Repères visuels de progression : les étapes déjà passées restent marquées,
    pas seulement l'étape courante (avant : seule "Société" s'allumait jamais),
    pour qu'on voie où on en est d'un coup d'œil. Réutilise .step.active existant. */

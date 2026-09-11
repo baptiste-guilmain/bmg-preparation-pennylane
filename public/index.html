@@ -59,7 +59,7 @@
       </div>
       <div class="drop-grid">
         <label class="dropzone" id="uber-zone"><input id="uber-file" type="file" accept=".xlsx,.csv" /><span class="file-icon">1</span><strong>Export Uber Eats</strong><em>Le fichier détaillé des commandes du mois, téléchargé depuis Uber Eats Manager (Rapports → Exports)</em><small id="uber-help">Excel (.xlsx) ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
-        <label class="dropzone" id="cash-zone"><input id="cash-file" type="file" accept=".pdf,.xlsx,.csv" /><span class="file-icon">2</span><strong>Rapport de caisse</strong><em>Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)</em><small id="cash-help">PDF, Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
+        <label class="dropzone" id="cash-zone"><input id="cash-file" type="file" accept=".pdf,.xlsx,.csv" /><span class="file-icon">2</span><strong id="cash-title">Rapport de caisse</strong><em>Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)</em><small id="cash-help">PDF, Excel ou CSV · obligatoire pour PDFK</small><div class="chosen" hidden></div></label>
         <label class="dropzone" id="operations-zone" hidden><input id="operations-file" type="file" accept=".xlsx" /><span class="file-icon">3</span><strong>Opérations quotidiennes</strong><em>Le rapport Excel brut « Opérations quotidiennes » du logiciel de caisse, pour le même mois</em><small id="operations-help">Excel (.xlsx) · obligatoire pour O'Tacos</small><div class="chosen" hidden></div></label>
       </div>
       <div id="preflight" class="preflight">
@@ -98,6 +98,6 @@
   </main>
   <footer><span>BMG · Outil interne</span><span>Paradis du Fruit, Crousty Game, O'Tacos (10 sociétés), DOZ (2 sociétés), IT TRATTORIA · comptes à valider par l'expert-comptable chaque mois</span></footer>
   <script src="vendor/jszip.min.js"></script>
-  <script type="module" src="app.js?v=fix-settlement-gap-20260911"></script>
+  <script type="module" src="app.js?v=cash-title-triple-20260911"></script>
 </body>
 </html>

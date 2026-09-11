@@ -71,12 +71,14 @@ function clearFile(key){const zone=$(`#${key}-zone`),input=$(`#${key}-file`),box
 function setProfile(id){
   profile=getProfile(id); const needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',dozCash=profile.cashAdapter==='doz-taxes',aldnCash=profile.cashAdapter==='aldn-taxes',strasgameCash=profile.cashAdapter==='strasgame-retraitements';
   clearFile('uber'); clearFile('cash'); clearFile('operations'); $('#cash-zone').hidden=!needsCash; $('#operations-zone').hidden=!otacosCash;
+  $('.drop-grid').classList.toggle('triple',otacosCash);
   const pending=profile.status==='pending';$('.profile-pill').classList.toggle('pending',pending);
   $('#profile-state').textContent=(needsCash?`${profile.name} · Uber + caisse validés`:`${profile.name} · Uber validé`)+(pending?' · en attente de confirmation':'');
   $('#profile-help').textContent=needsCash?(otacosCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':dozCash?'Profil caisse : TVA 5,5 % / 10 %':aldnCash?'Profil caisse : TVA 5,5 % / 10 % / 20 % × sur place/à emporter':strasgameCash?'Profil caisse : TVA 5,5 % / 10 % × sur place/à emporter':'Profil caisse : CA Liquide / Solide'):(profile.vatBreakdown?'Profil actif : Uber seul · TVA 5,5 % et 10 %':'Profil actif : Uber seul');
   $('#intro-note').textContent=needsCash?(otacosCash?"Déposez l'export Uber, le rapport Taxes et les Opérations quotidiennes du mois. Uber et Deliveroo sont retirés de la caisse ; aucune écriture Deliveroo n'est créée ici.":"Déposez les deux justificatifs du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération."):`Déposez l'export Uber du mois. L'outil applique les règles ${profile.name} et vérifie l'écriture avant génération.`;
   $('#uber-help').textContent=`Excel ou CSV · obligatoire pour ${profile.name}`;
   $('#cash-help').textContent=(otacosCash||dozCash||aldnCash||strasgameCash)?`Excel (.xlsx) · obligatoire pour ${profile.name}`:`PDF, Excel ou CSV · obligatoire pour ${profile.name}`;
+  $('#cash-title').textContent=otacosCash?'Fichier Taxes':dozCash?'Rapport de taxes':aldnCash?'Répartition des taux de TVA':strasgameCash?'Retraitements caisse':'Rapport de caisse';
   $('#cash-zone em').textContent=otacosCash?"Le rapport Excel brut « Taxes » du logiciel de caisse, feuille « Reports », pour le mois concerné":dozCash?"Le rapport de taxes du logiciel de caisse (export Excel avec les onglets Revenus/TVA), pour le mois concerné":aldnCash?"Le rapport Excel « Répartition des taux de TVA par emplacement » du logiciel de caisse, pour le mois concerné":strasgameCash?"Le rapport Excel « RETRAITEMENTS » du logiciel de caisse (Zelty), pour le mois concerné":"Le récapitulatif des ventes en caisse du mois (souvent nommé « Opérations quotidiennes »)";
   $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight(); resetPennylanePanel();
 }
