@@ -1,5 +1,13 @@
-/** Point d'entrée de l'outil interne BMG. L'accès est défini au déploiement :
- * uniquement les utilisateurs du domaine Google Workspace. */
+/** Point d'entrée de l'outil interne BMG. Accès défini dans appsscript.json :
+ * "ANYONE" (n'importe quel compte Google, pas restreint au domaine BMG,
+ * changé depuis DOMAIN le 11 sept. 2026 pour un collaborateur utilisant un
+ * Gmail personnel) et executeAs "USER_DEPLOYING" (tout s'exécute avec les
+ * autorisations du compte ayant déployé, quel que soit le visiteur).
+ * ATTENTION : aucune fonction ci-dessous (pennylanePost, saveEntryToDrive,
+ * checklistStatus...) ne vérifie l'identité de l'appelant — le lien /exec
+ * est de fait un accès complet en écriture à Pennylane sur les 15 sociétés
+ * pour quiconque le possède. Ne jamais republier ce lien dans un endroit
+ * public (dépôt de code public, page indexable...). */
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Import CA Pennylane')

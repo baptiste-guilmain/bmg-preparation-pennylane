@@ -1,14 +1,41 @@
 # Déploiement Workspace
 
 Cette version fournit l'outil en Web App Google Apps Script. Les fichiers
-importés restent dans le navigateur : aucune donnée de caisse ou Uber n'est
-envoyée à Drive ni à Apps Script. L'envoi direct Pennylane bêta est volontairement
-retiré ; l'équipe télécharge le fichier Excel validé.
+importés (Uber, caisse) restent dans le navigateur — jamais envoyés à Drive
+ni à Apps Script. L'envoi direct à Pennylane (bouton "Confirmer et envoyer")
+et l'archivage Drive de chaque écriture générée sont en revanche des
+fonctionnalités RÉELLES et actives : elles appellent Code.gs via
+`google.script.run`, qui lit les jetons API Pennylane depuis les propriétés
+de script (jamais transmis au navigateur) et écrit réellement dans Pennylane
+et dans le Drive du compte de déploiement.
 
-## Compte de déploiement
+## Comptes requis
 
-Utiliser un compte du domaine Google Workspace BMG, idéalement un compte
-technique pérenne. Ne pas déployer depuis un compte Gmail personnel.
+- **Déploiement** : `baptiste.guilmain@bmggroupe.fr` (compte du domaine
+  Workspace BMG). Ne pas déployer depuis un compte Gmail personnel.
+- **Jetons API Pennylane** : un par société, dans une propriété de script
+  `PENNYLANE_TOKEN_<ID EN MAJUSCULES>` (Extensions > Apps Script >
+  Paramètres du projet > Propriétés du script — ex. `PENNYLANE_TOKEN_HAGTACOS`).
+  Sans ce jeton, l'envoi Pennylane et le suivi du mois échouent proprement
+  pour cette société (message d'erreur explicite), le reste de l'outil
+  continue de fonctionner.
+
+## ⚠️ Accès : ANYONE, pas DOMAIN
+
+Changé le 11 sept. 2026 (à la demande de Baptiste, pour un collaborateur
+utilisant un compte Gmail personnel plutôt qu'un compte du domaine BMG) :
+
+```json
+"webapp": { "access": "ANYONE", "executeAs": "USER_DEPLOYING" }
+```
+
+Concrètement : **n'importe quel compte Google (pas seulement `@bmggroupe.fr`)
+qui possède le lien `/exec` peut ouvrir l'outil et, faute de vérification
+d'identité dans Code.gs, écrire réellement dans Pennylane sur les 15
+sociétés.** Le lien `/exec` doit donc être traité comme un secret :
+- ne jamais le publier dans un endroit public (voir la note plus bas sur la
+  visibilité du dépôt) ;
+- ne le transmettre qu'aux personnes qui doivent réellement saisir du CA.
 
 ## Publication
 
@@ -17,20 +44,8 @@ technique pérenne. Ne pas déployer depuis un compte Gmail personnel.
    `appsscript.json` par les fichiers de ce dossier.
 3. Dans **Déployer > Nouveau déploiement > Application Web**, choisir :
    - Exécuter en tant que : **moi** (le compte Workspace de déploiement) ;
-   - Accès : **toute personne de l'organisation BMG**.
-4. Autoriser le projet, puis diffuser l'URL `/exec` aux membres de l'équipe
-   comptable.
-
-Le script ne requiert pas de permission Drive ou Pennylane. Les restrictions
-d'accès Workspace sont la barrière d'accès à l'outil.
-
-## Vérification d'accès
-
-L'accès « toute personne de l'organisation BMG » se base sur le domaine
-`@bmggroupe.fr`, pas sur la licence : les comptes Cloud Identity Free
-(Virgile, Théo, Amélie) doivent donc pouvoir ouvrir l'URL `/exec` sans
-licence Workspace payante. À confirmer en se connectant avec un de ces
-comptes après le premier déploiement.
+   - Accès : **ANYONE** (voir l'avertissement ci-dessus).
+4. Autoriser le projet, puis diffuser l'URL `/exec` aux personnes concernées.
 
 ## Mise à jour
 
@@ -42,18 +57,32 @@ cette étape avant de pousser.
 
 ### Publier sur Apps Script avec clasp (recommandé)
 
-Le dossier est relié au projet existant via `apps-script/.clasp.json`
-(le fichier ne contient que l'ID du script, pas de secret). Depuis
-`apps-script/` :
+**⚠️ Il existe DEUX déploiements distincts, avec deux URL `/exec` différentes
+— chacun doit être déployé séparément, `clasp push` seul ne met à jour
+QUE le code source (HEAD), jamais un déploiement existant :**
 
+- Lien de test : `AKfycbzMKFFsTKEgMHtorg5MVhN8zcCLNkvWrC77OwCPFR_dJiw6hjyn3_GQBPFTXqAYSMnBng`
+- Lien officiel (celui utilisé par l'équipe) : `AKfycbz3AIVzpaMXtiZQsBezw4AvxsDXlgx5immgJSbwskY_JUeRr1mJB8wBUyagsZsJOYmxAw`
+
+Oublier l'un des deux donne l'impression trompeuse qu'un changement est en
+ligne alors qu'il ne l'est que sur l'autre lien (vécu le 11 sept. 2026 :
+changement de couleur déployé sur le lien de test uniquement, "toujours vert"
+sur le lien officiel pendant plusieurs échanges avant d'être repéré).
+
+**Toujours utiliser `node deploy.mjs "description courte"` depuis
+`apps-script/`** plutôt que les commandes clasp à la main : ce script
+régénère `Index.html`, vérifie que le JavaScript généré est syntaxiquement
+valide, puis déploie sur LES DEUX liens dans le bon ordre — impossible
+d'oublier l'un des deux ou de pousser du JS cassé.
+
+Détail de ce que fait le script (pour dépannage manuel si besoin) :
 ```
+node build-appsscript.mjs
+node --check <script extrait de Index.html>
 clasp push --force
-clasp deploy -i AKfycbz3AIVzpaMXtiZQsBezw4AvxsDXlgx5immgJSbwskY_JUeRr1mJB8wBUyagsZsJOYmxAw -d "description courte"
+clasp deploy -i AKfycbzMKFFsTKEgMHtorg5MVhN8zcCLNkvWrC77OwCPFR_dJiw6hjyn3_GQBPFTXqAYSMnBng -d "description"
+clasp deploy -i AKfycbz3AIVzpaMXtiZQsBezw4AvxsDXlgx5immgJSbwskY_JUeRr1mJB8wBUyagsZsJOYmxAw -d "description"
 ```
-
-`clasp push` envoie `Code.gs`, `Index.html` et `appsscript.json`. `clasp deploy -i`
-crée une nouvelle version sur le déploiement EXISTANT (même URL `/exec`, ne pas
-omettre `-i` sinon un nouveau déploiement avec une nouvelle URL est créé).
 
 Piège rencontré une fois : `clasp deploy -i` sans le bloc `"webapp"` explicite
 dans `appsscript.json` peut faire basculer le déploiement en type
@@ -61,9 +90,9 @@ dans `appsscript.json` peut faire basculer le déploiement en type
 (« Impossible d'ouvrir le fichier »). Le manifeste de ce dossier contient donc
 toujours :
 ```json
-"webapp": { "access": "DOMAIN", "executeAs": "USER_DEPLOYING" }
+"webapp": { "access": "ANYONE", "executeAs": "USER_DEPLOYING" }
 ```
-Si l'URL casse après un `clasp deploy`, vérifier dans **Déployer > Gérer les
+Si l'URL casse après un déploiement, vérifier dans **Déployer > Gérer les
 déploiements** que la section affichée est bien « Application Web » et pas
 « Bibliothèque ».
 

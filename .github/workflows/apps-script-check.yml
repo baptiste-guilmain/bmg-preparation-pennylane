@@ -21,3 +21,13 @@ jobs:
             echo "::error::apps-script/Index.html n'est pas à jour avec public/. Lancez 'node apps-script/build-appsscript.mjs' et committez le résultat."
             exit 1
           fi
+      - name: Vérifie que le JS du bundle est syntaxiquement valide
+        run: |
+          node -e "
+            const fs = require('fs');
+            const html = fs.readFileSync('apps-script/Index.html', 'utf8');
+            const m = html.match(/<script>([\s\S]*?)<\/script>/);
+            if (!m) { console.error('Balise <script> introuvable.'); process.exit(1); }
+            fs.writeFileSync('/tmp/bundle-check.js', m[1]);
+          "
+          node --check /tmp/bundle-check.js
