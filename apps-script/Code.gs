@@ -149,7 +149,7 @@ function pennylaneResolveEntries_(companyId, entries) {
         _accountNumber: line.accountNumber, _accountLabel: acc.label,
       });
     });
-    if (Math.abs(pennylaneMoney_(debitTotal - creditTotal)) > 0.01) {
+    if (Math.abs(pennylaneMoney_(debitTotal - creditTotal)) > 0.005) {
       throw new Error('Écriture "' + entry.label + '" déséquilibrée : débit ' + debitTotal.toFixed(2) + ' ≠ crédit ' + creditTotal.toFixed(2) + '.');
     }
     resolved.push({
@@ -211,6 +211,50 @@ function saveEntryToDrive(companyId, period, base64Content, filename) {
   );
   var file = monthFolder.createFile(blob);
   return { fileId: file.getId(), url: file.getUrl(), folder: DRIVE_ARCHIVE_ROOT + '/' + period, filename: filename };
+}
+
+// Suivi du mois : pour chaque société connue, vérifie directement dans
+// Pennylane (pas seulement dans notre Drive) si une écriture de CA existe déjà
+// pour la période — détecte aussi bien un envoi fait via cet outil qu'une
+// saisie manuelle par l'expert-comptable. Demandé par Baptiste le 11 sept.
+// 2026 pour ne pas se perdre entre les 15 sociétés. Deliveroo n'est jamais
+// géré par cet outil (voir profiles.js) donc n'entre pas dans ce contrôle.
+function checklistStatus(period) {
+  var parts = period.split('-');
+  var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+  var lastDay = new Date(Date.UTC(y, m, 0));
+  var iso = Utilities.formatDate(lastDay, 'UTC', 'yyyy-MM-dd');
+  var mmYYYY = ('0' + m).slice(-2) + '.' + y;
+
+  var driveNames = {};
+  try {
+    var root = driveGetOrCreateFolder_(DriveApp.getRootFolder(), DRIVE_ARCHIVE_ROOT);
+    var monthIt = root.getFoldersByName(period);
+    if (monthIt.hasNext()) {
+      var files = monthIt.next().getFiles();
+      while (files.hasNext()) driveNames[files.next().getName().replace(/\.xlsx$/i, '').toUpperCase()] = true;
+    }
+  } catch (e) { /* pas bloquant : le suivi Pennylane reste la source qui compte */ }
+
+  var result = {};
+  Object.keys(PENNYLANE_KNOWN_COMPANIES).forEach(function (companyId) {
+    var archived = !!driveNames[companyId.toUpperCase()];
+    var token = PropertiesService.getScriptProperties().getProperty('PENNYLANE_TOKEN_' + companyId.toUpperCase());
+    if (!token) { result[companyId] = { inPennylane: false, archived: archived, error: 'jeton absent' }; return; }
+    try {
+      var filter = JSON.stringify([{ field: 'date', operator: 'eq', value: iso }]);
+      var payload = pennylaneFetch_(token, '/ledger_entries?filter=' + encodeURIComponent(filter) + '&limit=100');
+      var items = pennylaneItems_(payload);
+      var inPennylane = items.some(function (it) {
+        var label = String(it.label || '');
+        return (label.indexOf('UBEREAT') === 0 || label.indexOf('RECETTES') === 0) && label.indexOf(mmYYYY) > -1;
+      });
+      result[companyId] = { inPennylane: inPennylane, archived: archived };
+    } catch (e) {
+      result[companyId] = { inPennylane: false, archived: archived, error: e.message };
+    }
+  });
+  return result;
 }
 
 function pennylanePost(companyId, entries, confirm) {

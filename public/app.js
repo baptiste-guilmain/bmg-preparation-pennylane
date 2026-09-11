@@ -14,7 +14,7 @@
 
 // --- 1. Setup / état global -------------------------------------------------
 import * as pdfjsLib from './vendor/pdf.min.mjs';
-import { getProfile } from './profiles.js';
+import { getProfile, profiles } from './profiles.js';
 pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
 
 const $ = (s) => document.querySelector(s);
@@ -518,8 +518,19 @@ function buildRows(uber,cash){
   // écart significatif ; sur les autres O'Tacos, seuls les écarts d'arrondi
   // inférieurs ou égaux à 1 EUR sont automatiquement rapprochés.
   const uberDebit=round(rows.reduce((sum,r)=>sum+(r.debit||0),0)),uberCredit=round(rows.reduce((sum,r)=>sum+(r.credit||0),0)),settlementGap=round(uberCredit-uberDebit);
-  const isOtacos=profile.vatBreakdown==='otacos-5.5-and-10',canReconcileGap=profile.id==='hagtacos'||(isOtacos&&Math.abs(settlementGap)<=1);
-  if(canReconcileGap&&Math.abs(settlementGap)>.01){
+  // Seuil de rapprochement automatique relevé de 1 € à 10 € le 11 sept. 2026 à la
+  // demande de Baptiste, sur toutes les sociétés O'Tacos (pas seulement HAGTACOS) :
+  // reprend le seuil de tolérance qu'il avait déjà validé avec l'expert-comptable
+  // le 7 sept. 2026 pour les écarts d'arrondi Uber cumulés.
+  const isOtacos=profile.vatBreakdown==='otacos-5.5-and-10',canReconcileGap=profile.id==='hagtacos'||(isOtacos&&Math.abs(settlementGap)<=10);
+  // Seuil > .005 (pas > .01) : un écart de tout juste 1 centime (settlementGap
+  // exactement égal à .01) doit être rapproché comme les autres, sinon il passe
+  // sous le tolérance de notre propre contrôle d'équilibre (également > .01),
+  // mais PAS sous celui - strict, zéro tolérance - de Pennylane, qui rejette
+  // l'écriture ("Entry lines are not balanced") sans que rien ne l'ait annoncé
+  // avant l'envoi réel. Bug trouvé le 11 sept. 2026 sur VINIOS août 2026 (envoi
+  // réel échoué chez Baptiste ET un collaborateur, aperçu pourtant jugé "ok").
+  if(canReconcileGap&&Math.abs(settlementGap)>.005){
     // L'écart est communiqué TTC. Il est ventilé à 20 % entre marketing et TVA
     // déductible afin de préserver la base HT et l'équilibre de l'écriture.
     const gapTtc=Math.abs(settlementGap),gapHt=round(gapTtc/(1+profile.expenseVat)),gapVat=round(gapTtc-gapHt),isDebit=settlementGap>0;
@@ -561,7 +572,7 @@ $('#process').addEventListener('click',async()=>{
     if(uber.primaryPeriod!==selected)errors.push(`La période principale Uber détectée (${uber.primaryPeriod||'inconnue'}) ne correspond pas à ${selected}.`);
     if(cash&&cash.period&&cash.period!==selected)errors.push(`La période du rapport de caisse (${cash.period}) ne correspond pas à ${selected}.`);
     const unknown=profile.uberEstablishments.length?uber.establishments.filter(x=>!profile.uberEstablishments.includes(x)):[];if(unknown.length)errors.push(`Établissement Uber non reconnu pour ${profile.name} : ${unknown.join(', ')}.`);
-    if(Math.abs(diff)>.01)errors.push(`Écriture déséquilibrée de ${money.format(Math.abs(diff))}.`);
+    if(Math.abs(diff)>.005)errors.push(`Écriture déséquilibrée de ${money.format(Math.abs(diff))}.`);
     if(Math.abs(round(uber.total-(uber.payouts.reduce((s,[,v])=>s+v,0))))>.01)errors.push('Le total Uber ne correspond pas à la somme des versements.');
     if(cash&&cash.kind!=='otacos-taxes'&&cash.kind!=='doz-taxes'&&cash.kind!=='aldn-taxes'&&cash.kind!=='strasgame-retraitements'){if(Math.abs(round((cash.liquid.ht+cash.liquid.vat)-cash.liquid.ttc))>.02)errors.push('La ligne caisse Liquide ne se recalcule pas.');if(Math.abs(round((cash.solid.ht+cash.solid.vat)-cash.solid.ttc))>.02)errors.push('La ligne caisse Solide ne se recalcule pas.');if(Math.abs(round((cash.alcohol.ht+cash.alcohol.vat)-cash.alcohol.ttc))>.02)errors.push('La ligne caisse Alcool ne se recalcule pas.');if(cash.declaredTotal!=null&&Math.abs(round(cash.total-cash.declaredTotal))>.02)errors.push(`Le total des trois lignes caisse (${money.format(cash.total)}) ne correspond pas au total TTC du PDF (${money.format(cash.declaredTotal)}).`)}
     renderResults(uber,cash,built,debit,credit,errors);

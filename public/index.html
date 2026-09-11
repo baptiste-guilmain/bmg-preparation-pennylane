@@ -23,6 +23,10 @@
       <div class="steps" aria-label="Progression">
         <div class="step active"><b>1</b><span>Société</span></div><i></i><div class="step"><b>2</b><span>Fichiers</span></div><i></i><div class="step"><b>3</b><span>Aperçu</span></div><i></i><div class="step"><b>4</b><span>Écriture comptable</span></div>
       </div>
+      <div id="checklist-panel" class="checklist-panel" hidden>
+        <div class="checklist-head"><h3>Suivi du mois</h3><span id="checklist-count"></span></div>
+        <div id="checklist-grid" class="checklist-grid"></div>
+      </div>
       <div class="form-grid">
         <label class="field"><span>Société</span><select id="company">
           <optgroup label="Crousty Game">
@@ -33,8 +37,8 @@
           </optgroup>
           <optgroup label="O'Tacos">
             <option value="hagtacos">✓ HAGTACOS — O'Tacos Haguenau</option>
-            <option value="colmios">⏳ COLMIOS — O'Tacos Colmar</option>
-            <option value="fartacos">⏳ FARTACOS — O'Tacos Strasbourg</option>
+            <option value="colmios">✓ COLMIOS — O'Tacos Colmar</option>
+            <option value="fartacos">✓ FARTACOS — O'Tacos Strasbourg</option>
             <option value="epios">✓ EPIOS — O'Tacos</option>
             <option value="geipios">✓ GEIPIOS — O'Tacos</option>
             <option value="sarios">✓ SARIOS — O'Tacos</option>
@@ -94,6 +98,6 @@
   </main>
   <footer><span>BMG · Outil interne</span><span>Paradis du Fruit, Crousty Game, O'Tacos (10 sociétés), DOZ (2 sociétés), IT TRATTORIA · comptes à valider par l'expert-comptable chaque mois</span></footer>
   <script src="vendor/jszip.min.js"></script>
-  <script type="module" src="app.js?v=design-status-badge-20260910"></script>
+  <script type="module" src="app.js?v=fix-settlement-gap-20260911"></script>
 </body>
 </html>

@@ -391,12 +391,17 @@ export const profiles = {
 // "Profil actif". 'validated' = comptes et formule vérifiés contre une écriture
 // réelle ; 'pending' = corrigé de notre côté, en attente d'une confirmation
 // externe (expert-comptable) avant d'être considéré définitivement clos.
+// COLMIOS et FARTACOS passés à 'validated' le 11 sept. 2026 à la demande de
+// Baptiste ("on va faire les 10 O'Tacos, au besoin l'expert pourra modifier
+// dans Pennylane") : la répartition TVA 5,5%/10% restait à confirmer par
+// Marion, mais Baptiste choisit d'avancer quand même sur les 10 sociétés,
+// quitte à faire corriger un écart directement dans Pennylane si besoin.
 export const PROFILE_STATUS = {
   strasgame: 'validated', pdfk: 'validated', hagtacos: 'validated', aldn: 'validated',
   colmardoz: 'validated', strasdoz: 'validated',
   vinios: 'validated', geipios: 'validated', sarios: 'validated', hautios: 'validated',
   mulios: 'validated', arios: 'validated', epios: 'validated',
-  colmios: 'pending', fartacos: 'pending',
+  colmios: 'validated', fartacos: 'validated',
 };
 
 export const getProfile = id => {
