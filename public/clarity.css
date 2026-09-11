@@ -15,15 +15,15 @@
 .step b{transition:background .2s,border-color .2s,color .2s}
 
 /* Retour visuel au survol : les contrôles interactifs doivent avoir l'air interactifs. */
-.field select:hover,.field input:hover{border-color:#aab8b2}
+.field select:hover,.field input:hover{border-color:#aab0b8}
 .field select:focus,.field input:focus{border-color:var(--green);outline:none;box-shadow:0 0 0 3px var(--green-soft)}
 .preflight button:not(:disabled):hover{background:var(--green-dark)}
-.download-bar button:not(:disabled):hover{background:#dcece4}
+.download-bar button:not(:disabled):hover{background:#dce3ec}
 .preview-title button:hover{text-decoration:underline}
 a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 
 /* Lignes du tableau d'aperçu : repère au survol pour suivre une ligne sur beaucoup de colonnes. */
-#rows tr:hover{background:#f8faf8}
+#rows tr:hover{background:#f8f9fa}
 
 /* Regroupement du sélecteur de société : rend les 13 options plus faciles à scanner. */
 #company optgroup{font:700 11px/1.4 Inter,"Segoe UI",Arial,sans-serif;color:var(--muted);letter-spacing:.04em}
@@ -42,10 +42,10 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .beta-tag{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--amber);background:#f7ecd6;border-radius:99px;padding:3px 8px}
 #pennylane-status{font-size:12px;color:var(--muted)}
 .pennylane-note{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0}
-.pennylane-preview{margin:14px 0;border:1px solid #edf0ee;border-radius:10px;overflow:hidden}
+.pennylane-preview{margin:14px 0;border:1px solid #edeef0;border-radius:10px;overflow:hidden}
 .pennylane-preview table{width:100%;border-collapse:collapse;font-size:11px}
-.pennylane-preview th{text-align:left;color:#75807c;font-weight:600;background:#f6f8f6;padding:8px}
-.pennylane-preview td{padding:8px;border-bottom:1px solid #edf0ee}
+.pennylane-preview th{text-align:left;color:#757a80;font-weight:600;background:#f6f7f8;padding:8px}
+.pennylane-preview td{padding:8px;border-bottom:1px solid #edeef0}
 .pennylane-preview .entry-title{padding:9px 8px;font-weight:700;background:#f2ecdd;font-size:12px}
 .pennylane-preview .num{text-align:right;font-variant-numeric:tabular-nums}
 .pennylane-actions{display:flex;gap:10px}
@@ -56,18 +56,22 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 #pennylane-send-btn:not(:disabled):hover{background:#8a5510}
 .pennylane-actions button:disabled{background:#e8e8e5;color:#9a9a96;border:0;cursor:not-allowed}
 
-/* Suivi du mois : dérivé automatiquement des fichiers déjà archivés dans Drive
-   pour la période choisie (pas une case à cocher manuelle, pour ne jamais
-   pouvoir oublier de cocher ou doublonner une société sur 15). N'apparaît que
-   dans l'environnement Apps Script (Drive requis), voir PENNYLANE_AVAILABLE. */
-.checklist-panel{margin-bottom:26px;padding:16px 20px;border:1px solid var(--line);border-radius:12px;background:#fbfcfb}
-.checklist-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.checklist-head h3{margin:0;font-size:13px}
-#checklist-count{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+/* Suivi du mois : dérivé en direct de Pennylane (et de l'archivage Drive) pour
+   la période choisie, jamais d'une case à cocher manuelle — pour ne jamais
+   pouvoir oublier de cocher ou doublonner une société sur 15, et pour que
+   plusieurs personnes saisissant en parallèle voient toutes la même chose.
+   N'apparaît que dans l'environnement Apps Script, voir PENNYLANE_AVAILABLE.
+   Traité comme un prolongement de la barre d'étapes (même séparateur, pas de
+   carte imbriquée dans .flow-panel) plutôt que comme un bloc à part : évite
+   le double encadré qui alourdissait la première version.  */
+.checklist-panel{padding-bottom:24px;margin-bottom:28px;border-bottom:1px solid var(--line)}
+.checklist-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+.checklist-head h3{margin:0;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--green)}
+#checklist-count{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .checklist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.checklist-item{display:flex;align-items:center;gap:7px;font-size:12px;padding:7px 10px;border-radius:8px;background:#fff;border:1px solid var(--line);color:var(--muted)}
-.checklist-item .check{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px;flex:none;border:1px solid #ccd4d1;color:transparent}
-.checklist-item.done{background:var(--green-soft);border-color:#cce1d6;color:var(--green-dark);font-weight:600}
+.checklist-item{display:flex;align-items:center;gap:8px;font-size:12px;padding:8px 11px;border-radius:8px;background:#fbfbfc;border:1px solid transparent;color:var(--muted);transition:.15s}
+.checklist-item .check{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font-size:10px;flex:none;border:1.5px solid #ccd0d4;color:transparent;transition:.15s}
+.checklist-item.done{background:var(--green-soft);color:var(--green-dark);font-weight:600}
 .checklist-item.done .check{background:var(--green);border-color:var(--green);color:#fff}
-.checklist-item.draft{background:#fffaf0;border-color:#e8d9b8;color:var(--amber)}
+.checklist-item.draft{background:#fffaf0;color:#8a6113}
 .checklist-item.draft .check{background:var(--amber);border-color:var(--amber);color:#fff}
