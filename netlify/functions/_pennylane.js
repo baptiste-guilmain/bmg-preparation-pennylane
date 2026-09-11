@@ -59,10 +59,12 @@ async function pennylaneFetch(token, path, options = {}) {
 
 async function resolveJournalId(token, code, cache) {
   if (cache.journals.has(code)) return cache.journals.get(code);
-  const filter = JSON.stringify([{ field: 'code', operator: 'eq', value: code }]);
-  const payload = await pennylaneFetch(token, `/journals?filter=${encodeURIComponent(filter)}&limit=5`);
+  // L'API Pennylane 2026 n'accepte plus de filtrer /journals par `code`
+  // (seul `type` est autorisé) — on liste tout et on filtre côté script,
+  // voir apps-script/Code.gs::pennylaneResolveJournalId_ pour le détail.
+  const payload = await pennylaneFetch(token, `/journals?limit=100`);
   const items = Array.isArray(payload) ? payload : (payload.items || payload.data || []);
-  const found = items.find(j => j.code === code) || items[0];
+  const found = items.find(j => j.code === code);
   if (!found) throw new PennylaneRequestError(`Journal "${code}" introuvable dans Pennylane pour cette société.`, 422);
   cache.journals.set(code, found.id);
   return found.id;

@@ -70,24 +70,19 @@ function pennylaneItems_(payload) {
   return Array.isArray(payload) ? payload : (payload.items || payload.data || []);
 }
 
-// PAS ENCORE FONCTIONNEL — testé le 10 sept. 2026 en conditions réelles
-// (jeton HAGTACOS, éditeur Apps Script) : l'API Pennylane a changé en 2026.
-// Deux points déjà corrigés : `per_page` renommé `limit` (confirmé par l'API
-// elle-même). Point RESTANT À CORRIGER, découvert mais pas encore résolu :
-// filtrer /journals par `field:"code"` échoue maintenant avec "Field \"code\"
-// is not allowed for filter. Allowed fields are \"type\"." — il faut soit
-// filtrer par `type` (valeur exacte à déterminer : lister /journals sans
-// filtre pour un jeton réel et regarder le champ `type` du journal VT) soit
-// lister tous les journaux et filtrer côté script sur `j.code==='VT'` (plus
-// simple, pas besoin de connaître la valeur attendue par l'API). Prochaine
-// étape avant de pouvoir tester une vraie écriture. Voir aussi la doc citée
-// par l'erreur : https://pennylane.readme.io/docs/2026-api-changes-guide
+// Corrigé le 11 sept. 2026 : l'API Pennylane 2026 n'accepte plus de filtrer
+// /journals par `field:"code"` ("Field \"code\" is not allowed for filter.
+// Allowed fields are \"type\"."). Solution retenue (la plus simple des deux
+// envisagées, pas besoin de connaître la valeur attendue par l'API pour
+// `type`) : lister tous les journaux de la société (une société n'en a
+// qu'une poignée, jamais assez pour justifier la pagination) et filtrer
+// côté script sur `j.code === code`. Voir la doc citée par l'erreur :
+// https://pennylane.readme.io/docs/2026-api-changes-guide
 function pennylaneResolveJournalId_(token, code, cache) {
   if (cache.journals[code]) return cache.journals[code];
-  var filter = JSON.stringify([{ field: 'code', operator: 'eq', value: code }]);
-  var payload = pennylaneFetch_(token, '/journals?filter=' + encodeURIComponent(filter) + '&limit=5');
+  var payload = pennylaneFetch_(token, '/journals?limit=100');
   var items = pennylaneItems_(payload);
-  var found = items.filter(function (j) { return j.code === code; })[0] || items[0];
+  var found = items.filter(function (j) { return j.code === code; })[0];
   if (!found) throw new Error('Journal "' + code + '" introuvable dans Pennylane pour cette société.');
   cache.journals[code] = found.id;
   return found.id;
