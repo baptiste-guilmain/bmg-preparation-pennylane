@@ -62,8 +62,20 @@ function pennylaneFetch_(token, path, options) {
     params.contentType = 'application/json';
     params.payload = options.body;
   }
-  var resp = UrlFetchApp.fetch(PENNYLANE_BASE_URL + path, params);
-  var code = resp.getResponseCode();
+  // Retry léger sur les erreurs transitoires (429/5xx) : un hoquet réseau ne
+  // doit pas ressembler à un vrai échec pour l'utilisateur. Jamais de retry
+  // sur les écritures (POST /ledger_entries) : en cas de timeout côté
+  // réponse, on ne sait pas si Pennylane a déjà créé l'écriture — rejouer
+  // l'appel risquerait un doublon, pire que l'erreur elle-même.
+  var isWrite = (options.method || 'get').toLowerCase() !== 'get';
+  var attempts = isWrite ? 1 : 3;
+  var resp, code;
+  for (var i = 0; i < attempts; i++) {
+    resp = UrlFetchApp.fetch(PENNYLANE_BASE_URL + path, params);
+    code = resp.getResponseCode();
+    if (code !== 429 && (code < 500 || code >= 600)) break;
+    if (i < attempts - 1) Utilities.sleep(500 * (i + 1));
+  }
   var text = resp.getContentText();
   var body = null;
   try { body = text ? JSON.parse(text) : null; } catch (e) { body = text; }
@@ -121,7 +133,11 @@ function pennylaneCheckDuplicates_(token, entries) {
   var conflicts = [];
   dates.forEach(function (date) {
     var filter = JSON.stringify([{ field: 'date', operator: 'eq', value: date }]);
-    var payload = pennylaneFetch_(token, '/ledger_entries?filter=' + encodeURIComponent(filter) + '&limit=100');
+    // limit=500 (pas 100) : une société avec >100 écritures un même jour
+    // passerait sous le radar du contrôle anti-doublon avec une limite trop
+    // basse. Pas une vraie pagination (pas de suivi de curseur au-delà de
+    // cette page), mais couvre largement le volume réel actuel.
+    var payload = pennylaneFetch_(token, '/ledger_entries?filter=' + encodeURIComponent(filter) + '&limit=500');
     var items = pennylaneItems_(payload);
     entries.filter(function (e) { return e.date === date; }).forEach(function (entry) {
       var existing = items.filter(function (it) { return it.label === entry.label; })[0];
@@ -251,7 +267,10 @@ function checklistStatus(period) {
     if (!token) { result[companyId] = { inPennylane: false, archived: archived, error: 'jeton absent' }; return; }
     try {
       var filter = JSON.stringify([{ field: 'date', operator: 'eq', value: iso }]);
-      var payload = pennylaneFetch_(token, '/ledger_entries?filter=' + encodeURIComponent(filter) + '&limit=100');
+      // limit=500 : même raison que pennylaneCheckDuplicates_ ci-dessus, pour
+      // qu'une société avec beaucoup d'écritures ce jour-là ne rate pas le
+      // suivi du mois faute d'une page assez large.
+      var payload = pennylaneFetch_(token, '/ledger_entries?filter=' + encodeURIComponent(filter) + '&limit=500');
       var items = pennylaneItems_(payload);
       var inPennylane = items.some(function (it) {
         var label = String(it.label || '');
