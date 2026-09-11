@@ -179,6 +179,40 @@ function pennylanePreview(companyId, entries) {
  * Pennylane. confirm doit valoir true (garde-fou en plus de la popup de
  * confirmation côté navigateur). Re-vérifie l'absence de doublon (défense en
  * profondeur : l'état a pu changer entre l'aperçu et l'envoi). */
+// =============================================================================
+// Archivage Drive — conserve chaque écriture générée (bouton "Télécharger
+// l'écriture Excel") dans le Drive de la personne qui a déployé l'outil, pour
+// garder un historique et permettre un import manuel ultérieur si besoin.
+// Un dossier racine, un sous-dossier par mois (ex. "2026-08"), un fichier par
+// société dedans (ex. "HAGTACOS.xlsx") — écrase le fichier existant du même
+// nom plutôt que d'empiler des doublons si l'écriture est régénérée.
+// =============================================================================
+
+var DRIVE_ARCHIVE_ROOT = 'BMG - Écritures Pennylane';
+
+function driveGetOrCreateFolder_(parent, name) {
+  var it = parent.getFoldersByName(name);
+  if (it.hasNext()) return it.next();
+  return parent.createFolder(name);
+}
+
+function saveEntryToDrive(companyId, period, base64Content, filename) {
+  if (!PENNYLANE_KNOWN_COMPANIES[companyId]) {
+    throw new Error('Société inconnue : ' + companyId);
+  }
+  var root = driveGetOrCreateFolder_(DriveApp.getRootFolder(), DRIVE_ARCHIVE_ROOT);
+  var monthFolder = driveGetOrCreateFolder_(root, period);
+  var existing = monthFolder.getFilesByName(filename);
+  while (existing.hasNext()) { existing.next().setTrashed(true); }
+  var blob = Utilities.newBlob(
+    Utilities.base64Decode(base64Content),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    filename
+  );
+  var file = monthFolder.createFile(blob);
+  return { fileId: file.getId(), url: file.getUrl(), folder: DRIVE_ARCHIVE_ROOT + '/' + period, filename: filename };
+}
+
 function pennylanePost(companyId, entries, confirm) {
   if (confirm !== true) throw new Error('Confirmation manquante.');
   var result = pennylaneResolveEntries_(companyId, entries);
