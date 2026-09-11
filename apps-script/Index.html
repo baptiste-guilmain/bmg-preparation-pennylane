@@ -580,6 +580,14 @@ const money = new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'});
 const round = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normalize = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u00a0/g,' ').replace(/[^a-zA-Z0-9]+/g,' ').trim().toLowerCase();
+// Declare ici (pas en section 8, malgre le sujet) car setProfile()/
+// resetPennylanePanel() y accedent des le premier appel de setProfile()
+// plus bas dans cette section - le declarer plus loin dans le fichier
+// provoquait un `ReferenceError: Cannot access 'PENNYLANE_AVAILABLE' before
+// initialization` qui interrompait TOUT le reste du script (sections 3 a 9
+// jamais executees, donc "Generer l'apercu" totalement inerte), trouve le
+// 11 sept. 2026 en testant HAGTACOS avec de vrais fichiers d'aout.
+const PENNYLANE_AVAILABLE=typeof google!=='undefined'&&!!google.script&&!!google.script.run;
 
 let profile = getProfile('strasgame');
 let state={files:{uber:null,cash:null,operations:null}, rows:[], allShown:false, valid:false};
@@ -784,7 +792,16 @@ async function parseCashOtacos(file,operationsFile){
   // distinction est confirmée par l'expert-comptable sur HAGTACOS, août 2026.
   const num=v=>typeof v==='number'?v:0;
   const found={};
-  rows.forEach(r=>{const label=normalize(r&&r[0]);if(label.indexOf('t v a')===0) found[label]={ttc:num(r[1]),ht:num(r[4]),tax:num(r[2])}});
+  // Certains rapports Taxes contiennent DEUX tableaux TVA identiques à la suite
+  // (le second, pré-calculé par le logiciel de caisse hors Uber Eats). On garde
+  // la PREMIÈRE occurrence (le total brut, plateformes incluses) : c'est celle-ci
+  // que soustrait la ligne « Uber/Deliveroo » plus bas (rawAe10 - platformsTtc,
+  // voir le garde-fou juste en dessous qui n'a de sens que si rawAe10 est le total
+  // brut). Garder la DERNIÈRE occurrence par erreur revient à soustraire Uber Eats
+  // deux fois (une fois via le second tableau du logiciel, une fois via la
+  // soustraction manuelle) — bug trouvé le 11 sept. 2026 sur HAGTACOS août 2026
+  // (écart de 23 113,70 €, exactement le total Uber Eats du mois).
+  rows.forEach(r=>{const label=normalize(r&&r[0]);if(label.indexOf('t v a')===0&&!found[label]) found[label]={ttc:num(r[1]),ht:num(r[4]),tax:num(r[2])}});
   const sp55=found['t v a 5 5 sp'],ae55=found['t v a 5 5 ae'],sp10=found['t v a 10 sp'],rawAe10=found['t v a 10 ae'];
   if(!sp55||!ae55||!sp10||!rawAe10) throw new Error("Les lignes TVA 5,5 % et 10 % (SP/AE) n'ont pas toutes été trouvées dans le fichier Taxes.");
   const rawTotal=round(sp55.ttc+ae55.ttc+sp10.ttc+rawAe10.ttc);
@@ -1156,7 +1173,7 @@ $('#download').addEventListener('click',async()=>{
 // données périmées. Un garde-fou côté serveur bloque aussi l'envoi si une
 // écriture du même libellé existe déjà pour la période (anti-doublon de CA).
 // --- 8. Envoi direct à Pennylane (bêta) -------------------------------------
-const PENNYLANE_AVAILABLE=typeof google!=='undefined'&&!!google.script&&!!google.script.run;
+// PENNYLANE_AVAILABLE est déclaré en section 1, voir le commentaire là-bas.
 if(!PENNYLANE_AVAILABLE) $('#pennylane-bar').hidden=true;
 function scriptRun(fnName,...args){
   return new Promise((resolve,reject)=>{
