@@ -19,10 +19,16 @@ if (!body) throw new Error('Corps HTML introuvable.');
 
 const cleanBody = body
   .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-const workspaceProfiles = profiles.replace('export const profiles', 'const profiles').replace('export const getProfile', 'const getProfile');
+// `export`/`import` retirés par regex générique (pas par des chaînes exactes
+// codées en dur) : un remplacement littéral oublie tout nouvel `export const`
+// ajouté plus tard dans profiles.js — ce qui a réellement cassé tout le JS du
+// bundle Apps Script en production le 10 sept. 2026 (export const PROFILE_STATUS
+// non neutralisé -> SyntaxError, écouteurs jamais posés, outil inerte y compris
+// sur le lien officiel de l'équipe). Voir apps-script/apps-script-check pour le
+// garde-fou qui doit désormais empêcher ce type de régression silencieuse.
+const workspaceProfiles = profiles.replace(/^export\s+/gm, '');
 const workspaceApp = app
-  .replace("import * as pdfjsLib from './vendor/pdf.min.mjs';\n", '')
-  .replace("import { getProfile } from './profiles.js';\n", '')
+  .replace(/^import\s+.*$/gm, '')
   .replace("pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';", "pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';");
 
 const output = `<!doctype html>

@@ -543,7 +543,7 @@ const profiles = {
 // "Profil actif". 'validated' = comptes et formule vérifiés contre une écriture
 // réelle ; 'pending' = corrigé de notre côté, en attente d'une confirmation
 // externe (expert-comptable) avant d'être considéré définitivement clos.
-export const PROFILE_STATUS = {
+const PROFILE_STATUS = {
   strasgame: 'validated', pdfk: 'validated', hagtacos: 'validated', aldn: 'validated',
   colmardoz: 'validated', strasdoz: 'validated',
   vinios: 'validated', geipios: 'validated', sarios: 'validated', hautios: 'validated',
@@ -571,6 +571,8 @@ const getProfile = id => {
 // =============================================================================
 
 // --- 1. Setup / état global -------------------------------------------------
+
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 const $ = (s) => document.querySelector(s);
