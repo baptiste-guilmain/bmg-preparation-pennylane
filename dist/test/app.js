@@ -30,6 +30,10 @@ const normalize = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]
 // jamais executees, donc "Generer l'apercu" totalement inerte), trouve le
 // 11 sept. 2026 en testant HAGTACOS avec de vrais fichiers d'aout.
 const PENNYLANE_AVAILABLE=typeof google!=='undefined'&&!!google.script&&!!google.script.run;
+// Même raison qu'au-dessus : utilisé par refreshChecklist(), appelée dès la
+// fin de la section 2, avant que la section 8 (où cette variable vivait
+// avant) ne s'exécute.
+let checklistToken=0;
 
 let profile = getProfile('strasgame');
 let state={files:{uber:null,cash:null,operations:null}, rows:[], allShown:false, valid:false};
@@ -78,6 +82,12 @@ function setProfile(id){
 }
 $('#company').addEventListener('change',e=>setProfile(e.target.value));
 setProfile('strasgame');
+// Suivi du mois : lu depuis Pennylane (et notre Drive) à chaque changement de
+// période, pas depuis le navigateur — donc valable pour tout le monde quand
+// plusieurs personnes saisissent en parallèle, voir refreshChecklist en
+// section 8 (dépend de scriptRun/PENNYLANE_AVAILABLE, définis plus bas).
+$('#period').addEventListener('change',refreshChecklist);
+refreshChecklist();
 
 // --- 3. Lecture des fichiers Uber (CSV/XLSX) --------------------------------
 async function parseUber(file){
@@ -609,6 +619,7 @@ $('#download').addEventListener('click',async()=>{
       const base64=await makeXlsx(state.rows,'base64');
       const res=await scriptRun('saveEntryToDrive',profile.id,$('#period').value,base64,`${profile.name}.xlsx`);
       help.textContent=`Vérifiez l'aperçu ci-dessus avant de télécharger l'écriture comptable. Archivé dans Drive : ${res.folder}/${res.filename}.`;
+      refreshChecklist();
     }catch(e){
       help.textContent=`Vérifiez l'aperçu ci-dessus avant de télécharger l'écriture comptable. Échec de l'archivage Drive : ${e.message||e}.`;
     }
@@ -639,6 +650,39 @@ function resetPennylanePanel(){
   const box=$('#pennylane-preview');box.hidden=true;box.innerHTML='';
   $('#pennylane-send-btn').disabled=true;
   $('#pennylane-status').textContent='Aucun aperçu généré';
+}
+// Suivi du mois : dérivé de Pennylane (source de vérité, valable pour tout
+// le monde) et de notre Drive (fichier généré mais pas forcément envoyé),
+// jamais du navigateur — voir checklistStatus dans Code.gs. Demandé par
+// Baptiste le 11 sept. 2026 pour ne pas se perdre entre les 15 sociétés
+// quand plusieurs personnes saisissent en parallèle. checklistToken est
+// déclaré en section 1 (voir le commentaire là-bas).
+async function refreshChecklist(){
+  const panel=$('#checklist-panel');
+  if(!PENNYLANE_AVAILABLE){panel.hidden=true;return;}
+  const period=$('#period').value;
+  if(!period){panel.hidden=true;return;}
+  const myToken=++checklistToken;
+  panel.hidden=false;
+  $('#checklist-count').textContent='Vérification…';
+  try{
+    const status=await scriptRun('checklistStatus',period);
+    if(myToken!==checklistToken)return;
+    const items=Object.values(profiles);
+    const done=items.filter(p=>status[p.id]&&status[p.id].inPennylane).length;
+    $('#checklist-count').textContent=`${done} / ${items.length} déjà dans Pennylane`;
+    $('#checklist-grid').innerHTML=items.map(p=>{
+      const s=status[p.id]||{};
+      const cls=s.inPennylane?'done':s.archived?'draft':'';
+      const title=s.inPennylane?'Déjà dans Pennylane':s.archived?'Fichier généré, pas encore envoyé':s.error==='jeton absent'?'Jeton API absent':'Rien fait pour ce mois';
+      const mark=s.inPennylane?'✓':s.archived?'●':'○';
+      return `<div class="checklist-item ${cls}" title="${esc(title)}"><span class="check">${mark}</span>${esc(p.name)}</div>`;
+    }).join('');
+  }catch(e){
+    if(myToken!==checklistToken)return;
+    $('#checklist-count').textContent=`Suivi indisponible : ${e.message||e}`;
+    $('#checklist-grid').innerHTML='';
+  }
 }
 function groupRowsForPennylane(){
   const groups=new Map();
@@ -679,6 +723,7 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()
     const created=await scriptRun('pennylanePost',pennylanePayload.companyId,pennylanePayload.entries,true);
     $('#pennylane-status').textContent=`${created.length} écriture(s) créée(s) dans Pennylane.`;
     $('#pennylane-preview-btn').disabled=true;pennylanePayload=null;btn.disabled=true;
+    refreshChecklist();
   }catch(e){
     $('#pennylane-status').textContent=`Échec de l'envoi : ${e.message||e}`;
     btn.disabled=false;
