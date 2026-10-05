@@ -62,19 +62,23 @@ export const profiles = {
     uberVat: 0.10,
     expenseVat: 0.20,
     uberEstablishments: ['BYS00443'],
+    // Numéros corrigés le 5 oct. 2026 contre les écritures RÉELLEMENT postées dans Pennylane
+    // (UBEREAT 08.2026 et RECETTES 08.2026, via l'API) : les anciens numéros avaient des zéros de
+    // remplissage (701130000...) que l'import Excel tolérait mais qui n'existent pas dans le plan
+    // comptable ("Compte 701130000 introuvable" à l'envoi direct) — même piège que les autres sociétés.
     accounts: {
-      uberSales: ['701130000', 'VENTES 10% UBEREATS'],
-      vat10: ['445710080', 'TVA collectée à 10%'],
-      commission: ['622200000', 'COMMISSIONS UBEREATS'],
-      deductibleVat: ['445660000', 'TVA sur autres biens et services'],
-      marketing: ['623204000', 'DEPENSES MARKETING UBEREATS'],
-      mealVoucher: ['580004000', 'VERSEMENT TR'],
-      uberSettlement: ['580009000', 'UBEREAT'],
-      liquid: ['701110000', 'VENTES 10% LIQUIDE'],
-      solid: ['701120000', 'VENTES 10% SOLIDE'],
-      alcohol: ['701200000', 'VENTES 20% ALCOOL'],
-      vat20: ['445710090', 'TVA collectée à 20%'],
-      cash: ['531000000', 'CAISSE']
+      uberSales: ['70113', 'VENTES 10% UBEREATS'],
+      vat10: ['44571008', 'TVA collectée à 10%'],
+      commission: ['6222', 'COMMISSIONS UBEREATS'],
+      deductibleVat: ['44566', 'TVA sur autres biens et services'],
+      marketing: ['623204', 'DEPENSES MARKETING UBEREATS'],
+      mealVoucher: ['580004', 'VERSEMENT TR'],
+      uberSettlement: ['580009', 'UBEREAT'],
+      liquid: ['70111', 'VENTES 10% LIQUIDE'],
+      solid: ['70112', 'VENTES 10% SOLIDE'],
+      alcohol: ['7012', 'VENTES 20% ALCOOL'],
+      vat20: ['44571009', 'TVA collectée à 20%'],
+      cash: ['531', 'CAISSE']
     }
   },
   // STRASGAME = SAINTIOS (même société, confirmé par Baptiste). Comptes Uber
