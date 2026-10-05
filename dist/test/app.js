@@ -351,23 +351,39 @@ async function parseCashAldn(file){
   for(const sheet of sheets){
     const idx=sheet.rows.findIndex(r=>normalize(r&&r[0])==='taux');
     if(idx<0)continue;
-    const headerRow=sheet.rows[idx],starts={};
+    const headerRow=sheet.rows[idx],starts={unknown:[]};
+    // Canaux connus : A Emporter + BàE + CáTàE = "AE" ; BSP + Sur Place + CáTSP = "SP" ;
+    // Deliveroo et UberEats exclus. CáTàE/CáTSP (noms exacts du fichier, avec un "á")
+    // sont apparus en septembre 2026 (absents du rapport de juillet, ~13,80 € TTC) :
+    // rattachés à AE/SP d'après le suffixe de leur nom (E = emporter, SP = sur place,
+    // comme BàE/BSP) — hypothèse à faire confirmer par l'expert-comptable. Les graphies
+    // "cote"/"cotsp" sont acceptées au cas où le logiciel de caisse corrigerait le nom.
+    // Tout AUTRE canal inconnu avec des montants bloque (voir plus bas).
+    const knownIgnored=['deliveroo','ubereats','total'];
     headerRow.forEach((cell,i)=>{const n=normalize(cell);
-      if(n==='a emporter')starts.ae1=i;else if(n==='bae')starts.ae2=i;
-      else if(n==='bsp')starts.sp1=i;else if(n==='sur place')starts.sp2=i;});
+      if(i===0||!n)return;
+      if(n==='a emporter')starts.ae1=i;else if(n==='bae')starts.ae2=i;else if(n==='catae'||n==='cote')starts.ae3=i;
+      else if(n==='bsp')starts.sp1=i;else if(n==='sur place')starts.sp2=i;else if(n==='catsp'||n==='cotsp')starts.sp3=i;
+      else if(!knownIgnored.includes(n))starts.unknown.push({name:String(cell),i});});
     if([starts.ae1,starts.ae2,starts.sp1,starts.sp2].every(v=>v!=null)){rows=sheet.rows;headerRowIndex=idx;groupStarts=starts;break;}
   }
   if(rows==null) throw new Error('Rapport "Répartition des taux de TVA par emplacement" introuvable dans le classeur de caisse ALDN.');
   if([groupStarts.ae1,groupStarts.ae2,groupStarts.sp1,groupStarts.sp2].some(v=>v==null))
     throw new Error('Colonnes "A Emporter" / "BàE" / "BSP" / "Sur Place" introuvables dans le rapport de caisse ALDN.');
-  const rates={};
+  const rates={};let coteTtc=0;
+  const aeCols=[groupStarts.ae1,groupStarts.ae2,groupStarts.ae3].filter(v=>v!=null),spCols=[groupStarts.sp1,groupStarts.sp2,groupStarts.sp3].filter(v=>v!=null);
   for(let i=headerRowIndex+2;i<rows.length;i++){
     const row=rows[i];if(!row)continue;
     if(normalize(row[0])==='total')break;
     const rate=Math.round(parseFloat(row[0])*10)/10;if(!Number.isFinite(rate))continue;
     const ht=c=>num(row[c]),tax=c=>num(row[c+1]);
-    rates[rate]={aeHt:round(ht(groupStarts.ae1)+ht(groupStarts.ae2)),aeTax:round(tax(groupStarts.ae1)+tax(groupStarts.ae2)),
-      spHt:round(ht(groupStarts.sp1)+ht(groupStarts.sp2)),spTax:round(tax(groupStarts.sp1)+tax(groupStarts.sp2))};
+    // Un canal inconnu avec des montants = ventes de caisse potentiellement oubliées :
+    // on bloque plutôt que de les ignorer en silence.
+    for(const u of groupStarts.unknown) if(Math.abs(ht(u.i))>.004||Math.abs(tax(u.i))>.004)
+      throw new Error(`Canal de caisse inconnu dans le rapport ALDN : « ${u.name} » (${money.format(ht(u.i)+tax(u.i))} TTC au taux ${rate} %). Vérifiez avec l'expert-comptable dans quelle catégorie (sur place / à emporter / plateforme) le classer.`);
+    for(const c of [groupStarts.ae3,groupStarts.sp3]) if(c!=null) coteTtc+=ht(c)+tax(c);
+    const sum=(cols,f)=>round(cols.reduce((s,c)=>s+f(c),0));
+    rates[rate]={aeHt:sum(aeCols,ht),aeTax:sum(aeCols,tax),spHt:sum(spCols,ht),spTax:sum(spCols,tax)};
   }
   const r55=rates[5.5],r10=rates[10],r20=rates[20];
   if(!r55||!r10) throw new Error('Les taux 5,5 % et 10 % sont introuvables dans le rapport de caisse ALDN.');
@@ -376,7 +392,7 @@ async function parseCashAldn(file){
   return {sp55:r55.spHt,ae55:r55.aeHt,vat55:round(r55.spTax+r55.aeTax),
     sp10:r10.spHt,ae10:r10.aeHt,vat10:round(r10.spTax+r10.aeTax),
     sp20:r20?r20.spHt:0,ae20:r20?r20.aeHt:0,vat20:r20?round(r20.spTax+r20.aeTax):0,
-    total,period:extractAldnPeriod(periodCell),kind:'aldn-taxes'};
+    total,cote:round(coteTtc),period:extractAldnPeriod(periodCell),kind:'aldn-taxes'};
 }
 
 async function parseCashStrasgame(file){
@@ -599,7 +615,7 @@ function renderResults(uber,cash,built,debit,credit,errors){
   if(profile.vatBreakdown==='doz-5.5-and-10')checks.push(['TVA Uber ventilée',`10 % : ${money.format(Math.abs(uber.vat2))} · 5,5 % (par différence) : ${money.format(round(built.salesVat-Math.abs(uber.vat2)))}`]);
   if(cash&&cash.kind==='otacos-taxes'){checks.push(['Taxes et opérations quotidiennes rapprochées',`${money.format(cash.rawTotal)} TTC`],['Uber retiré de la caisse (Opérations quotidiennes)',money.format(cash.uberExcluded)],['Deliveroo retiré de la caisse',money.format(cash.deliverooExcluded)],['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55.ht+cash.ae55.ht)} HT · TVA ${money.format(cash.sp55.tax+cash.ae55.tax)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10.ht+cash.ae10.ht)} HT · TVA ${money.format(cash.sp10.tax+cash.ae10.tax)}`],['Total caisse hors Uber et Deliveroo',money.format(cash.total)]);}
   else if(cash&&cash.kind==='doz-taxes'){checks.push(['Caisse - 5,5 %',`${money.format(cash.ht55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 %',`${money.format(cash.ht10)} HT · TVA ${money.format(cash.vat10)}`],['Total caisse (hors plateformes de livraison)',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
-  else if(cash&&cash.kind==='aldn-taxes'){checks.push(['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55+cash.ae55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10+cash.ae10)} HT · TVA ${money.format(cash.vat10)}`]);if(cash.sp20>.004||cash.ae20>.004)checks.push(['Caisse - 20 % (SP + AE)',`${money.format(cash.sp20+cash.ae20)} HT · TVA ${money.format(cash.vat20)}`]);checks.push(['Total caisse hors Deliveroo et UberEats',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
+  else if(cash&&cash.kind==='aldn-taxes'){checks.push(['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55+cash.ae55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10+cash.ae10)} HT · TVA ${money.format(cash.vat10)}`]);if(cash.sp20>.004||cash.ae20>.004)checks.push(['Caisse - 20 % (SP + AE)',`${money.format(cash.sp20+cash.ae20)} HT · TVA ${money.format(cash.vat20)}`]);if(cash.cote>.004)checks.push(['Canaux CáTàE (à emporter) + CáTSP (sur place)',`${money.format(cash.cote)} TTC inclus dans la caisse`]);checks.push(['Total caisse hors Deliveroo et UberEats',`${money.format(cash.total)} calculé sur le rapport de caisse`]);}
   else if(cash&&cash.kind==='strasgame-retraitements'){checks.push(['Caisse - 5,5 % (SP + AE)',`${money.format(cash.sp55+cash.ae55)} HT · TVA ${money.format(cash.vat55)}`],['Caisse - 10 % (SP + AE)',`${money.format(cash.sp10+cash.ae10)} HT · TVA ${money.format(cash.vat10)}`],['Total caisse hors Deliveroo et UberEats',`${money.format(cash.total)} calculé sur la section « Ecritures »`]);}
   else if(cash)checks.push(['Caisse - Liquide 10 %',`${money.format(cash.liquid.ht)} HT · ${money.format(cash.liquid.ttc)} TTC`],['Caisse - Solide 10 %',`${money.format(cash.solid.ht)} HT · ${money.format(cash.solid.ttc)} TTC`],['Caisse - Alcool 20 %',`${money.format(cash.alcohol.ht)} HT · ${money.format(cash.alcohol.ttc)} TTC`],['Total caisse rapproché',cash.declaredTotal!=null?`${money.format(cash.total)} = ${money.format(cash.declaredTotal)}`:`${money.format(cash.total)} calculé sur les trois lignes`]);
   checks.push(['TVA recalculée',profile.vatBreakdown==='5.5-and-10'?'Uber 5,5 % / 10 % · Frais 20 %':'Uber 10 % · Frais 20 %'],['Équilibre Débit = Crédit',`${money.format(debit)} = ${money.format(credit)}`]);
@@ -671,13 +687,22 @@ async function refreshChecklist(){
     const status=await scriptRun('checklistStatus',period);
     if(myToken!==checklistToken)return;
     const items=Object.values(profiles);
+    // Une société en erreur (API refusée, jeton invalide...) ne doit JAMAIS passer
+    // pour "rien fait" : c'est ce qui affichait "0 / 15" au lieu de signaler le
+    // problème quand la requête Pennylane échouait (octobre 2026).
+    const failed=items.filter(p=>status[p.id]&&status[p.id].error);
+    if(failed.length===items.length){
+      $('#checklist-count').textContent=`Suivi indisponible : ${status[failed[0].id].error}`;
+      $('#checklist-grid').innerHTML='';
+      return;
+    }
     const done=items.filter(p=>status[p.id]&&status[p.id].inPennylane).length;
-    $('#checklist-count').textContent=`${done} / ${items.length} déjà dans Pennylane`;
+    $('#checklist-count').textContent=`${done} / ${items.length} déjà dans Pennylane`+(failed.length?` · ${failed.length} vérification(s) en erreur`:'');
     $('#checklist-grid').innerHTML=items.map(p=>{
       const s=status[p.id]||{};
-      const cls=s.inPennylane?'done':s.archived?'draft':'';
-      const title=s.inPennylane?'Déjà dans Pennylane':s.archived?'Fichier généré, pas encore envoyé':s.error==='jeton absent'?'Jeton API absent':'Rien fait pour ce mois';
-      const mark=s.inPennylane?'✓':s.archived?'●':'○';
+      const cls=s.error?'error':s.inPennylane?'done':s.archived?'draft':'';
+      const title=s.error?(s.error==='jeton absent'?'Jeton API absent':`Vérification impossible : ${s.error}`):s.inPennylane?'Déjà dans Pennylane':s.archived?'Fichier généré, pas encore envoyé':'Rien fait pour ce mois';
+      const mark=s.error?'!':s.inPennylane?'✓':s.archived?'●':'○';
       return `<div class="checklist-item ${cls}" title="${esc(title)}"><span class="check">${mark}</span>${esc(p.name)}</div>`;
     }).join('');
   }catch(e){

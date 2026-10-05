@@ -84,5 +84,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .checklist-item .check{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font-size:10px;flex:none;border:1.5px solid #ccd0d4;color:transparent;transition:.15s}
 .checklist-item.done{background:var(--green-soft);color:var(--green-dark);font-weight:600}
 .checklist-item.done .check{background:var(--green);border-color:var(--green);color:#fff}
+.checklist-item.error{background:#fff6f5;color:var(--red)}
+.checklist-item.error .check{background:var(--red);border-color:var(--red);color:#fff}
 .checklist-item.draft{background:#fffaf0;color:#8a6113}
 .checklist-item.draft .check{background:var(--amber);border-color:var(--amber);color:#fff}

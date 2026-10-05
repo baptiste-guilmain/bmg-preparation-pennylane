@@ -90,6 +90,26 @@ function pennylaneItems_(payload) {
   return Array.isArray(payload) ? payload : (payload.items || payload.data || []);
 }
 
+// Liste TOUTES les pages d'une ressource (pagination par curseur de l'API 2026 :
+// has_more / next_cursor). L'API refuse tout limit > 100 ("Must be between 1 and
+// 100") : le 11 sept. 2026 un passage à limit=500 non testé sur l'API réelle a
+// fait échouer, en silence, le suivi du mois ("0 / 15") ET le contrôle
+// anti-doublon (donc tout aperçu/envoi Pennylane). Échec fermé si la liste est
+// trop longue : mieux vaut bloquer que laisser passer un doublon non vu.
+function pennylaneListAll_(token, basePath) {
+  var items = [], cursor = null, pages = 0;
+  do {
+    var path = basePath + (basePath.indexOf('?') < 0 ? '?' : '&') + 'limit=100' +
+      (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
+    var payload = pennylaneFetch_(token, path);
+    items = items.concat(pennylaneItems_(payload));
+    cursor = payload && payload.has_more ? payload.next_cursor : null;
+    pages++;
+  } while (cursor && pages < 30);
+  if (cursor) throw new Error('Trop d\'écritures Pennylane à parcourir (plus de 3000) : vérification impossible.');
+  return items;
+}
+
 // Corrigé le 11 sept. 2026 : l'API Pennylane 2026 n'accepte plus de filtrer
 // /journals par `field:"code"` ("Field \"code\" is not allowed for filter.
 // Allowed fields are \"type\"."). Solution retenue (la plus simple des deux
@@ -133,12 +153,7 @@ function pennylaneCheckDuplicates_(token, entries) {
   var conflicts = [];
   dates.forEach(function (date) {
     var filter = JSON.stringify([{ field: 'date', operator: 'eq', value: date }]);
-    // limit=500 (pas 100) : une société avec >100 écritures un même jour
-    // passerait sous le radar du contrôle anti-doublon avec une limite trop
-    // basse. Pas une vraie pagination (pas de suivi de curseur au-delà de
-    // cette page), mais couvre largement le volume réel actuel.
-    var payload = pennylaneFetch_(token, '/ledger_entries?filter=' + encodeURIComponent(filter) + '&limit=500');
-    var items = pennylaneItems_(payload);
+    var items = pennylaneListAll_(token, '/ledger_entries?filter=' + encodeURIComponent(filter));
     entries.filter(function (e) { return e.date === date; }).forEach(function (entry) {
       var existing = items.filter(function (it) { return it.label === entry.label; })[0];
       if (existing) conflicts.push({ label: entry.label, date: entry.date, existingId: existing.id });
@@ -267,11 +282,7 @@ function checklistStatus(period) {
     if (!token) { result[companyId] = { inPennylane: false, archived: archived, error: 'jeton absent' }; return; }
     try {
       var filter = JSON.stringify([{ field: 'date', operator: 'eq', value: iso }]);
-      // limit=500 : même raison que pennylaneCheckDuplicates_ ci-dessus, pour
-      // qu'une société avec beaucoup d'écritures ce jour-là ne rate pas le
-      // suivi du mois faute d'une page assez large.
-      var payload = pennylaneFetch_(token, '/ledger_entries?filter=' + encodeURIComponent(filter) + '&limit=500');
-      var items = pennylaneItems_(payload);
+      var items = pennylaneListAll_(token, '/ledger_entries?filter=' + encodeURIComponent(filter));
       var inPennylane = items.some(function (it) {
         var label = String(it.label || '');
         return (label.indexOf('UBEREAT') === 0 || label.indexOf('RECETTES') === 0) && label.indexOf(mmYYYY) > -1;
