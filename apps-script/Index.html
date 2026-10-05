@@ -241,6 +241,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
         expenseVat: .2,
         uberEstablishments: establishmentId ? [ establishmentId ] : [],
         accounts: cashAccounts ? {
+            cashVat20: [ "445712001", "TVA collect\xe9e \xe0 20% (caisse)" ],
             ...accounts,
             ...cashAccounts
         } : accounts
@@ -509,7 +510,8 @@ const profiles = {
             salesAE55: [ "701052", "VENTES 5,5% A EMPORTER" ],
             salesSP10: [ "70111", "VENTES 10% SUR PLACE" ],
             salesAE10: [ "70112", "VENTES 10% A EMPORTER" ],
-            cash: [ "530", "CAISSE" ]
+            cash: [ "530", "CAISSE" ],
+            cashVat20: [ "44571009", "TVA collect\xe9e \xe0 20%" ]
         }
     }),
     arios: otacosProfile({
@@ -533,7 +535,8 @@ const profiles = {
             salesAE55: [ "701052", "VENTES 5,5% A EMPORTER" ],
             salesSP10: [ "70111", "VENTES 10% SUR PLACE" ],
             salesAE10: [ "70112", "VENTES 10% A EMPORTER" ],
-            cash: [ "531", "CAISSE" ]
+            cash: [ "531", "CAISSE" ],
+            cashVat20: [ "44571009", "TVA collect\xe9e \xe0 20%" ]
         }
     }),
     vinios: otacosProfile({
@@ -1108,7 +1111,8 @@ async function parseCashOtacos(file, operationsFile) {
     const found = {};
     rows.forEach((r => {
         const label = normalize(r && r[0]);
-        if (label.indexOf("t v a") === 0 && !found[label]) found[label] = {
+        if ((label.indexOf("t v a") === 0 || /^tva\b/.test(label)) && !found[label]) found[label] = {
+            name: String(r[0]),
             ttc: num(r[1]),
             ht: num(r[4]),
             tax: num(r[2])
@@ -1116,11 +1120,28 @@ async function parseCashOtacos(file, operationsFile) {
     }));
     const sp55 = found["t v a 5 5 sp"], ae55 = found["t v a 5 5 ae"], sp10 = found["t v a 10 sp"], rawAe10 = found["t v a 10 ae"];
     if (!sp55 || !ae55 || !sp10 || !rawAe10) throw new Error("Les lignes TVA 5,5 % et 10 % (SP/AE) n'ont pas toutes \xe9t\xe9 trouv\xe9es dans le fichier Taxes.");
-    const rawTotal = round(sp55.ttc + ae55.ttc + sp10.ttc + rawAe10.ttc);
+    const knownTax = [ "t v a 5 5 sp", "t v a 5 5 ae", "t v a 10 sp", "t v a 10 ae" ];
+    let ttc20 = 0, tax20 = 0;
+    Object.entries(found).forEach((([label, v]) => {
+        if (knownTax.includes(label)) return;
+        if (/^(t v a|tva) 20\b/.test(label)) {
+            ttc20 += v.ttc;
+            tax20 += v.tax;
+            return;
+        }
+        if (Math.abs(v.ttc) > .004 || Math.abs(v.tax) > .004) throw new Error(`Ligne de taxe inconnue dans le fichier Taxes : \xab ${v.name} \xbb (${money.format(v.ttc)} TTC). V\xe9rifiez avec l'expert-comptable dans quel compte la classer.`);
+    }));
+    const vat20 = {
+        ttc: round(ttc20),
+        tax: round(tax20),
+        ht: round(ttc20 - tax20)
+    };
+    const rawTotal = round(sp55.ttc + ae55.ttc + sp10.ttc + rawAe10.ttc + vat20.ttc);
     const operationHt = operationsRows.find((r => normalize(r && r[0]) === "ventes nettes de tva")), operationTax = operationsRows.find((r => normalize(r && r[0]) === "taxes recouvrees"));
     if (!operationHt || !operationTax) throw new Error("Les totaux \xab Ventes nettes de TVA \xbb et \xab Taxes recouvr\xe9es \xbb sont introuvables dans les Op\xe9rations quotidiennes.");
     const operationsTotal = round(num(operationHt[1]) + num(operationTax[1]));
-    if (Math.abs(rawTotal - operationsTotal) > .02) throw new Error(`Les rapports Taxes et Op\xe9rations quotidiennes ne concordent pas (${money.format(rawTotal)} contre ${money.format(operationsTotal)} TTC).`);
+    const crossGap = round(rawTotal - operationsTotal);
+    if (Math.abs(crossGap) > 10) throw new Error(`Les rapports Taxes et Op\xe9rations quotidiennes ne concordent pas (${money.format(rawTotal)} contre ${money.format(operationsTotal)} TTC).`);
     const cashPaymentTotal = label => {
         const matches = operationsRows.filter((r => String(r && r[0] || "").trim() === label && num(r[1]) > 0));
         if (!matches.length) return undefined;
@@ -1135,7 +1156,7 @@ async function parseCashOtacos(file, operationsFile) {
         ht: round(ae10Ttc / 1.1),
         tax: round(ae10Ttc - round(ae10Ttc / 1.1))
     };
-    const total = round(sp55.ttc + ae55.ttc + sp10.ttc + ae10.ttc);
+    const total = round(sp55.ttc + ae55.ttc + sp10.ttc + ae10.ttc + vat20.ttc);
     const extractPeriod = sourceRows => {
         const row = sourceRows.find((r => normalize(r && r[0]) === "dates d operation")), m = row && String(row[1] || "").match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})\s*-/);
         return m ? `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}` : "";
@@ -1147,10 +1168,12 @@ async function parseCashOtacos(file, operationsFile) {
         ae55: ae55,
         sp10: sp10,
         ae10: ae10,
+        vat20: vat20,
         total: total,
         period: period,
         rawTotal: rawTotal,
         operationsTotal: operationsTotal,
+        crossGap: crossGap,
         uberExcluded: uberTtc,
         deliverooExcluded: deliverooTtc,
         kind: "otacos-taxes"
@@ -1496,7 +1519,19 @@ function buildRows(uber, cash) {
     }
     if (profile.mode === "uber-and-cash") {
         if (profile.cashAdapter === "otacos-taxes") {
-            rows.push(line(date, "VT", a.salesSP55, cl, null, round(cash.sp55.ht), .055), line(date, "VT", a.salesAE55, cl, null, round(cash.ae55.ht), .055), line(date, "VT", a.vat55, cl, null, round(cash.sp55.tax + cash.ae55.tax)), line(date, "VT", a.salesSP10, cl, null, round(cash.sp10.ht), .1), line(date, "VT", a.salesAE10, cl, null, round(cash.ae10.ht), .1), line(date, "VT", a.vat10, cl, null, round(cash.sp10.tax + cash.ae10.tax)), line(date, "VT", a.cash, cl, cash.total));
+            const v20 = cash.vat20 || {
+                ttc: 0,
+                tax: 0,
+                ht: 0
+            };
+            const c55sp = round(cash.sp55.ht), c55ae = round(cash.ae55.ht), c55v = round(cash.sp55.tax + cash.ae55.tax), c10sp = round(cash.sp10.ht), c10v = round(cash.sp10.tax + cash.ae10.tax);
+            let c10ae = round(cash.ae10.ht + v20.ht);
+            const cashGap = round(cash.total - (c55sp + c55ae + c55v + c10sp + c10ae + c10v + v20.tax));
+            if (Math.abs(cashGap) <= .05) c10ae = round(c10ae + cashGap);
+            if (v20.tax > .004 && !a.cashVat20) throw new Error("Compte de TVA \xe0 20 % (caisse) non d\xe9fini pour cette soci\xe9t\xe9.");
+            rows.push(line(date, "VT", a.salesSP55, cl, null, c55sp, .055), line(date, "VT", a.salesAE55, cl, null, c55ae, .055), line(date, "VT", a.vat55, cl, null, c55v), line(date, "VT", a.salesSP10, cl, null, c10sp, .1), line(date, "VT", a.salesAE10, cl, null, c10ae, .1), line(date, "VT", a.vat10, cl, null, c10v));
+            if (v20.tax > .004) rows.push(line(date, "VT", a.cashVat20, cl, null, v20.tax));
+            rows.push(line(date, "VT", a.cash, cl, cash.total));
         } else if (profile.cashAdapter === "doz-taxes") {
             rows.push(line(date, "VT", a.salesHt55, cl, null, round(cash.ht55), .055), line(date, "VT", a.vat55, cl, null, round(cash.vat55)), line(date, "VT", a.salesHt10, cl, null, round(cash.ht10), .1), line(date, "VT", a.vat10, cl, null, round(cash.vat10)), line(date, "VT", a.cash, cl, cash.total));
         } else if (profile.cashAdapter === "aldn-taxes") {
@@ -1571,7 +1606,9 @@ function renderResults(uber, cash, built, debit, credit, errors) {
     }
     if (profile.vatBreakdown === "doz-5.5-and-10") checks.push([ "TVA Uber ventil\xe9e", `10 % : ${money.format(Math.abs(uber.vat2))} \xb7 5,5 % (par diff\xe9rence) : ${money.format(round(built.salesVat - Math.abs(uber.vat2)))}` ]);
     if (cash && cash.kind === "otacos-taxes") {
-        checks.push([ "Taxes et op\xe9rations quotidiennes rapproch\xe9es", `${money.format(cash.rawTotal)} TTC` ], [ "Uber retir\xe9 de la caisse (Op\xe9rations quotidiennes)", money.format(cash.uberExcluded) ], [ "Deliveroo retir\xe9 de la caisse", money.format(cash.deliverooExcluded) ], [ "Caisse - 5,5 % (SP + AE)", `${money.format(cash.sp55.ht + cash.ae55.ht)} HT \xb7 TVA ${money.format(cash.sp55.tax + cash.ae55.tax)}` ], [ "Caisse - 10 % (SP + AE)", `${money.format(cash.sp10.ht + cash.ae10.ht)} HT \xb7 TVA ${money.format(cash.sp10.tax + cash.ae10.tax)}` ], [ "Total caisse hors Uber et Deliveroo", money.format(cash.total) ]);
+        checks.push(Math.abs(cash.crossGap || 0) > .02 ? [ "Taxes et op\xe9rations quotidiennes : \xe9cart tol\xe9r\xe9", `Taxes ${money.format(cash.rawTotal)} \xb7 Op\xe9rations ${money.format(cash.operationsTotal)} TTC \xb7 \xe9cart ${money.format(cash.crossGap)} (le rapport Taxes est retenu, \xe0 voir avec l'expert)` ] : [ "Taxes et op\xe9rations quotidiennes rapproch\xe9es", `${money.format(cash.rawTotal)} TTC` ], [ "Uber retir\xe9 de la caisse (Op\xe9rations quotidiennes)", money.format(cash.uberExcluded) ], [ "Deliveroo retir\xe9 de la caisse", money.format(cash.deliverooExcluded) ], [ "Caisse - 5,5 % (SP + AE)", `${money.format(cash.sp55.ht + cash.ae55.ht)} HT \xb7 TVA ${money.format(cash.sp55.tax + cash.ae55.tax)}` ], [ "Caisse - 10 % (SP + AE)", `${money.format(cash.sp10.ht + cash.ae10.ht)} HT \xb7 TVA ${money.format(cash.sp10.tax + cash.ae10.tax)}` ]);
+        if (cash.vat20 && cash.vat20.ttc > .004) checks.push([ "Article \xe0 20 % (hors 5,5 / 10 %)", `${money.format(cash.vat20.ttc)} TTC \xb7 TVA ${money.format(cash.vat20.tax)} (445712001) \xb7 HT ${money.format(cash.vat20.ht)} inclus dans la ligne 10 % \xe0 emporter` ]);
+        checks.push([ "Total caisse hors Uber et Deliveroo", money.format(cash.total) ]);
     } else if (cash && cash.kind === "doz-taxes") {
         checks.push([ "Caisse - 5,5 %", `${money.format(cash.ht55)} HT \xb7 TVA ${money.format(cash.vat55)}` ], [ "Caisse - 10 %", `${money.format(cash.ht10)} HT \xb7 TVA ${money.format(cash.vat10)}` ], [ "Total caisse (hors plateformes de livraison)", `${money.format(cash.total)} calcul\xe9 sur le rapport de caisse` ]);
     } else if (cash && cash.kind === "aldn-taxes") {

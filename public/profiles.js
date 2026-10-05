@@ -17,7 +17,9 @@ function otacosProfile({ id, name, label, establishmentId, accounts, cashAccount
     vatBreakdown: 'otacos-5.5-and-10',
     expenseVat: 0.20,
     uberEstablishments: establishmentId ? [establishmentId] : [],
-    accounts: cashAccounts ? { ...accounts, ...cashAccounts } : accounts
+    // cashVat20 : TVA à 20 % de la caisse (compte 445712001, "TVA COLLECTEE 20 %", présent
+    // chez FARTACOS) pour les articles hors 5,5/10 % — voir parseCashOtacos dans app.js.
+    accounts: cashAccounts ? { cashVat20: ['445712001', 'TVA collectée à 20% (caisse)'], ...accounts, ...cashAccounts } : accounts
   };
 }
 
@@ -249,7 +251,9 @@ export const profiles = {
     // MULIOS est la seule société du groupe dont le compte de caisse est 530 et
     // non 531 (confirmé sur l'écriture RECETTES réelle de juillet 2026).
     salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
-    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['530', 'CAISSE']
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['530', 'CAISSE'],
+    // Pas de 445712001 chez MULIOS (vérifié via l'API le 5 oct. 2026) : compte standard 44571009.
+    cashVat20: ['44571009', 'TVA collectée à 20%']
   } }),
   // ARIOS : écriture Uber Eats de juillet 2026 confirmée (comme les 7 autres), avec
   // une différence réelle sur le compte de versement : 580009 et non 580006.
@@ -262,7 +266,9 @@ export const profiles = {
     // Caisse : comptes confirmés le 8 sept. 2026 contre l'écriture RECETTES
     // réellement postée (exacts au centime, même schéma que les 8 autres).
     salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
-    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE']
+    salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE'],
+    // Pas de 445712001 chez ARIOS (vérifié via l'API le 5 oct. 2026) : compte standard 44571009.
+    cashVat20: ['44571009', 'TVA collectée à 20%']
   } }),
   // Uber + Caisse confirmés le 10 sept. 2026 contre les écritures RÉELLEMENT postées
   // (UBEREATS 07.2026 et RECETTES 07.2026) : tous les comptes collent exactement,
