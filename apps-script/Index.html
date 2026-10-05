@@ -102,8 +102,16 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .pl-msg{margin:14px 0 0;padding:12px 14px;border-radius:9px;font-size:13px;line-height:1.5;background:var(--green-soft);color:var(--green-dark)}
 .pl-progress.success .pl-msg{font-weight:700}
 .pl-progress.error .pl-msg{background:#fff6f5;color:var(--red)}
-#pl-next-btn{margin-top:12px;border:0;border-radius:9px;height:44px;padding:0 18px;font-weight:700;cursor:pointer;background:var(--green);color:#fff}
-#pl-next-btn:hover{background:var(--green-dark)}
+.pl-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.pl-actions button{border-radius:9px;height:44px;padding:0 18px;font-weight:700;cursor:pointer}
+#pl-new-btn{border:0;background:var(--green);color:#fff}
+#pl-new-btn:hover{background:var(--green-dark)}
+
+/* Page vierge : aucune société choisie -> pas de zones de dépôt ni de bouton tant que
+   l'utilisateur n'a pas choisi lui-même la société (évite de déposer des fichiers sur la
+   société présélectionnée par défaut). */
+.flow-panel.blank .drop-grid,.flow-panel.blank .preflight{display:none}
+.pl-actions button[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){.pl-bar i,.pl-steps .dot{animation:none!important;transition:none}}
 
 /* Suivi du mois : dérivé en direct de Pennylane (et de l'archivage Drive) pour
@@ -136,7 +144,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
   <main>
     <section class="intro">
       <div><p class="eyebrow">IMPORT DE CHIFFRE D'AFFAIRES</p><h1>Préparer un nouvel import</h1><p id="intro-note">Déposez l'export Uber du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération.</p></div>
-      <div class="profile-pill"><span>Profil actif</span><strong id="profile-state">STRASGAME · Uber validé</strong></div>
+      <div class="profile-pill"><span>Profil actif</span><strong id="profile-state">Aucune société choisie</strong></div>
     </section>
 
     <section class="panel flow-panel">
@@ -149,8 +157,9 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
       </div>
       <div class="form-grid">
         <label class="field"><span>Société</span><select id="company">
+          <option value="" selected>— Choisir une société —</option>
           <optgroup label="Crousty Game">
-            <option value="strasgame" selected>✓ STRASGAME — Crousty Game Strasbourg</option>
+            <option value="strasgame">✓ STRASGAME — Crousty Game Strasbourg</option>
           </optgroup>
           <optgroup label="Paradis du Fruit">
             <option value="pdfk">✓ PDFK — Paradis du Fruit Strasbourg Kléber</option>
@@ -214,7 +223,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
           <div class="pl-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="pl-fill"></i></div>
           <ol id="pl-steps" class="pl-steps"></ol>
           <p id="pl-msg" class="pl-msg"></p>
-          <button id="pl-next-btn" type="button" hidden></button>
+          <div class="pl-actions"><button id="pl-new-btn" type="button" hidden>Nouvel import</button></div>
         </div>
         <div class="pennylane-actions">
           <button id="pennylane-preview-btn" disabled>Générer l'aperçu</button>
@@ -694,8 +703,6 @@ let checklistToken = 0;
 
 let sendingNow = false;
 
-let lastChecklistStatus = null;
-
 let profile = getProfile("strasgame");
 
 let state = {
@@ -787,7 +794,28 @@ function clearFile(key) {
     box.hidden = true;
 }
 
+function showBlank() {
+    clearFile("uber");
+    clearFile("cash");
+    clearFile("operations");
+    $(".flow-panel").classList.add("blank");
+    $("#process").disabled = true;
+    $(".profile-pill").classList.remove("pending");
+    $("#profile-state").textContent = "Aucune soci\xe9t\xe9 choisie";
+    $("#intro-note").textContent = "Choisissez la soci\xe9t\xe9 et la p\xe9riode, puis d\xe9posez les fichiers du mois. L'outil applique les r\xe8gles de la soci\xe9t\xe9 et v\xe9rifie l'\xe9criture avant g\xe9n\xe9ration.";
+    $("#profile-help").textContent = "Choisissez une soci\xe9t\xe9 pour commencer.";
+    $("#results").hidden = true;
+    state.valid = false;
+    setStep(1);
+    resetPennylanePanel();
+}
+
 function setProfile(id) {
+    if (!id) {
+        showBlank();
+        return;
+    }
+    $(".flow-panel").classList.remove("blank");
     profile = getProfile(id);
     const needsCash = profile.mode === "uber-and-cash", otacosCash = profile.cashAdapter === "otacos-taxes", dozCash = profile.cashAdapter === "doz-taxes", aldnCash = profile.cashAdapter === "aldn-taxes", strasgameCash = profile.cashAdapter === "strasgame-retraitements";
     clearFile("uber");
@@ -814,7 +842,7 @@ function setProfile(id) {
 
 $("#company").addEventListener("change", (e => setProfile(e.target.value)));
 
-setProfile("strasgame");
+setProfile("");
 
 $("#period").addEventListener("change", refreshChecklist);
 
@@ -1691,6 +1719,7 @@ function resetPennylanePanel() {
     pennylanePayload = null;
     if (!PENNYLANE_AVAILABLE) return;
     $("#pennylane-progress").hidden = true;
+    $("#pl-new-btn").hidden = true;
     const box = $("#pennylane-preview");
     box.hidden = true;
     box.innerHTML = "";
@@ -1710,13 +1739,11 @@ async function refreshChecklist() {
         return;
     }
     const myToken = ++checklistToken;
-    lastChecklistStatus = null;
     panel.hidden = false;
     $("#checklist-count").textContent = "V\xe9rification\u2026";
     try {
         const status = await scriptRun("checklistStatus", period);
         if (myToken !== checklistToken) return;
-        lastChecklistStatus = status;
         const items = Object.values(profiles);
         const failed = items.filter((p => status[p.id] && status[p.id].error));
         if (failed.length === items.length) {
@@ -1809,6 +1836,7 @@ function plDraw(cls, title, steps, msg) {
     $(".pl-bar").setAttribute("aria-valuenow", pct);
     $("#pl-steps").innerHTML = steps.map((s => `<li class="${s.state}"><span class="dot">${s.state === "done" ? "\u2713" : s.state === "error" ? "!" : ""}</span><span>${esc(s.label)}${s.detail ? ` \u2014 ${esc(s.detail)}` : ""}</span></li>`)).join("");
     $("#pl-msg").textContent = msg;
+    $("#pl-new-btn").hidden = cls !== "success";
 }
 
 function setFormLocked(lock) {
@@ -1817,29 +1845,16 @@ function setFormLocked(lock) {
     }));
 }
 
-function showNextCompany() {
-    const btn = $("#pl-next-btn"), st = lastChecklistStatus;
-    btn.hidden = true;
-    if (!st) return;
-    const all = Object.values(profiles), next = all.find((p => p.id !== profile.id && st[p.id] && !st[p.id].inPennylane && !st[p.id].error));
-    if (next) {
-        btn.textContent = `Passer \xe0 ${next.name} \u2192`;
-        btn.dataset.id = next.id;
-        btn.hidden = false;
-    } else if (all.every((p => st[p.id] && st[p.id].inPennylane))) $("#pl-msg").textContent += " Toutes les soci\xe9t\xe9s de cette p\xe9riode sont maintenant dans Pennylane.";
-}
-
-if (PENNYLANE_AVAILABLE) $("#pl-next-btn").addEventListener("click", (() => {
-    const id = $("#pl-next-btn").dataset.id;
-    if (!id || sendingNow) return;
-    const sel = $("#company");
-    sel.value = id;
-    sel.dispatchEvent(new Event("change", {
-        bubbles: true
-    }));
+if (PENNYLANE_AVAILABLE) $("#pl-new-btn").addEventListener("click", (() => {
+    if (sendingNow) return;
+    $("#company").value = "";
+    setProfile("");
     window.scrollTo({
         top: 0,
         behavior: "smooth"
+    });
+    $("#company").focus({
+        preventScroll: true
     });
 }));
 
@@ -1863,7 +1878,6 @@ if (PENNYLANE_AVAILABLE) $("#pennylane-send-btn").addEventListener("click", (asy
     btn.disabled = true;
     btn.textContent = "Envoi en cours\u2026";
     $("#pennylane-preview-btn").disabled = true;
-    $("#pl-next-btn").hidden = true;
     const steps = entries.map((e => ({
         label: `Cr\xe9ation de l'\xe9criture ${e.label} (${e.lines.length} lignes)`,
         state: done.has(e.label) ? "done" : "pending"
@@ -1940,14 +1954,13 @@ if (PENNYLANE_AVAILABLE) $("#pennylane-send-btn").addEventListener("click", (asy
     $("#process").disabled = processWas;
     btn.textContent = prevLabel;
     if (steps.every((s => s.state === "done"))) {
-        plDraw("success", `${name} \xb7 ${periodLabel} : termin\xe9`, steps, `Termin\xe9 : les ${entries.length} \xe9critures de ${name} (${periodLabel}) sont cr\xe9\xe9es et v\xe9rifi\xe9es dans Pennylane. Vous pouvez passer \xe0 la soci\xe9t\xe9 suivante.`);
+        plDraw("success", `${name} \xb7 ${periodLabel} : termin\xe9`, steps, `Termin\xe9 : les ${entries.length} \xe9critures de ${name} (${periodLabel}) sont cr\xe9\xe9es et v\xe9rifi\xe9es dans Pennylane. Cliquez sur \xab Nouvel import \xbb pour traiter une autre soci\xe9t\xe9.`);
         $("#pennylane-status").textContent = "Envoi termin\xe9 et v\xe9rifi\xe9.";
         btn.textContent = "Confirmer et envoyer \xe0 Pennylane";
         $("#pennylane-preview-btn").disabled = true;
         pennylanePayload = null;
         btn.disabled = true;
-        await refreshChecklist();
-        showNextCompany();
+        refreshChecklist();
     } else {
         const bad = steps.find((s => s.state === "error")) || steps.find((s => s.state === "pending"));
         plDraw("error", `${name} \xb7 ${periodLabel} : envoi incomplet`, steps, `Envoi incomplet \u2014 \xe9tape en \xe9chec : \xab ${bad.label} \xbb${bad.detail ? ` (${bad.detail})` : ""}. Les \xe9critures d\xe9j\xe0 cr\xe9\xe9es sont conserv\xe9es. Ne passez pas \xe0 la soci\xe9t\xe9 suivante : cliquez sur \xab Reprendre l'envoi \xbb pour envoyer uniquement ce qui manque.`);

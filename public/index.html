@@ -6,7 +6,7 @@
   <meta name="description" content="Préparation contrôlée des imports de chiffre d'affaires Pennylane pour BMG." />
   <title>BMG — Préparation Pennylane</title>
   <link rel="stylesheet" href="styles.css?v=otacos-raw-20260907" />
-  <link rel="stylesheet" href="clarity.css" />
+  <link rel="stylesheet" href="clarity.css?v=blank2" />
 </head>
 <body>
   <header class="topbar">
@@ -16,7 +16,7 @@
   <main>
     <section class="intro">
       <div><p class="eyebrow">IMPORT DE CHIFFRE D'AFFAIRES</p><h1>Préparer un nouvel import</h1><p id="intro-note">Déposez l'export Uber du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération.</p></div>
-      <div class="profile-pill"><span>Profil actif</span><strong id="profile-state">STRASGAME · Uber validé</strong></div>
+      <div class="profile-pill"><span>Profil actif</span><strong id="profile-state">Aucune société choisie</strong></div>
     </section>
 
     <section class="panel flow-panel">
@@ -29,8 +29,9 @@
       </div>
       <div class="form-grid">
         <label class="field"><span>Société</span><select id="company">
+          <option value="" selected>— Choisir une société —</option>
           <optgroup label="Crousty Game">
-            <option value="strasgame" selected>✓ STRASGAME — Crousty Game Strasbourg</option>
+            <option value="strasgame">✓ STRASGAME — Crousty Game Strasbourg</option>
           </optgroup>
           <optgroup label="Paradis du Fruit">
             <option value="pdfk">✓ PDFK — Paradis du Fruit Strasbourg Kléber</option>
@@ -94,7 +95,7 @@
           <div class="pl-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="pl-fill"></i></div>
           <ol id="pl-steps" class="pl-steps"></ol>
           <p id="pl-msg" class="pl-msg"></p>
-          <button id="pl-next-btn" type="button" hidden></button>
+          <div class="pl-actions"><button id="pl-new-btn" type="button" hidden>Nouvel import</button></div>
         </div>
         <div class="pennylane-actions">
           <button id="pennylane-preview-btn" disabled>Générer l'aperçu</button>
@@ -105,6 +106,6 @@
   </main>
   <footer><span>BMG · Outil interne</span><span>Paradis du Fruit, Crousty Game, O'Tacos (10 sociétés), DOZ (2 sociétés), IT TRATTORIA · comptes à valider par l'expert-comptable chaque mois</span></footer>
   <script src="vendor/jszip.min.js"></script>
-  <script type="module" src="app.js?v=vat20b-20261005"></script>
+  <script type="module" src="app.js?v=blank2-20261005"></script>
 </body>
 </html>

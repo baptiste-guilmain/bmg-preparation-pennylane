@@ -37,7 +37,6 @@ let checklistToken=0;
 // Mêmes raisons (TDZ) : lus par updatePreflight()/resetPennylanePanel()/
 // refreshChecklist(), appelées dès le chargement, avant la section 8.
 let sendingNow=false;
-let lastChecklistStatus=null;
 
 let profile = getProfile('strasgame');
 let state={files:{uber:null,cash:null,operations:null}, rows:[], allShown:false, valid:false};
@@ -72,7 +71,21 @@ function updatePreflight(){
 function formatBytes(n){return n>1048576?`${(n/1048576).toFixed(1)} Mo`:`${Math.ceil(n/1024)} Ko`}
 bindFile('#uber-file','#uber-zone','uber'); bindFile('#cash-file','#cash-zone','cash'); bindFile('#operations-file','#operations-zone','operations');
 function clearFile(key){const zone=$(`#${key}-zone`),input=$(`#${key}-file`),box=zone.querySelector('.chosen');state.files[key]=null;input.value='';zone.classList.remove('has-file');box.hidden=true}
+// Page vierge : aucune société choisie, aucune zone de dépôt (voir .flow-panel.blank). État
+// de départ ET état après "Nouvel import" : c'est l'utilisateur qui choisit la société, rien
+// n'est présélectionné (avant, STRASGAME l'était et pouvait recevoir des fichiers par erreur).
+function showBlank(){
+  clearFile('uber'); clearFile('cash'); clearFile('operations');
+  $('.flow-panel').classList.add('blank');
+  $('#process').disabled=true;
+  $('.profile-pill').classList.remove('pending'); $('#profile-state').textContent='Aucune société choisie';
+  $('#intro-note').textContent="Choisissez la société et la période, puis déposez les fichiers du mois. L'outil applique les règles de la société et vérifie l'écriture avant génération.";
+  $('#profile-help').textContent='Choisissez une société pour commencer.';
+  $('#results').hidden=true; state.valid=false; setStep(1); resetPennylanePanel();
+}
 function setProfile(id){
+  if(!id){showBlank();return}
+  $('.flow-panel').classList.remove('blank');
   profile=getProfile(id); const needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',dozCash=profile.cashAdapter==='doz-taxes',aldnCash=profile.cashAdapter==='aldn-taxes',strasgameCash=profile.cashAdapter==='strasgame-retraitements';
   clearFile('uber'); clearFile('cash'); clearFile('operations'); $('#cash-zone').hidden=!needsCash; $('#operations-zone').hidden=!otacosCash;
   $('.drop-grid').classList.toggle('triple',otacosCash);
@@ -87,7 +100,7 @@ function setProfile(id){
   $('#results').hidden=true; state.valid=false; setStep(1); updatePreflight(); resetPennylanePanel();
 }
 $('#company').addEventListener('change',e=>setProfile(e.target.value));
-setProfile('strasgame');
+setProfile('');
 // Suivi du mois : lu depuis Pennylane (et notre Drive) à chaque changement de
 // période, pas depuis le navigateur — donc valable pour tout le monde quand
 // plusieurs personnes saisissent en parallèle, voir refreshChecklist en
@@ -702,7 +715,7 @@ function resetPennylanePanel(){
   if(sendingNow)return;
   pennylanePayload=null;
   if(!PENNYLANE_AVAILABLE)return;
-  $('#pennylane-progress').hidden=true;
+  $('#pennylane-progress').hidden=true;$('#pl-new-btn').hidden=true;
   const box=$('#pennylane-preview');box.hidden=true;box.innerHTML='';
   $('#pennylane-send-btn').disabled=true;
   $('#pennylane-status').textContent='Aucun aperçu généré';
@@ -719,13 +732,11 @@ async function refreshChecklist(){
   const period=$('#period').value;
   if(!period){panel.hidden=true;return;}
   const myToken=++checklistToken;
-  lastChecklistStatus=null;
   panel.hidden=false;
   $('#checklist-count').textContent='Vérification…';
   try{
     const status=await scriptRun('checklistStatus',period);
     if(myToken!==checklistToken)return;
-    lastChecklistStatus=status;
     const items=Object.values(profiles);
     // Une société en erreur (API refusée, jeton invalide...) ne doit JAMAIS passer
     // pour "rien fait" : c'est ce qui affichait "0 / 15" au lieu de signaler le
@@ -797,18 +808,17 @@ function plDraw(cls,title,steps,msg){
   $('#pl-fill').style.width=`${pct}%`;$('.pl-bar').setAttribute('aria-valuenow',pct);
   $('#pl-steps').innerHTML=steps.map(s=>`<li class="${s.state}"><span class="dot">${s.state==='done'?'✓':s.state==='error'?'!':''}</span><span>${esc(s.label)}${s.detail?` — ${esc(s.detail)}`:''}</span></li>`).join('');
   $('#pl-msg').textContent=msg;
+  $('#pl-new-btn').hidden=cls!=='success';
 }
 function setFormLocked(lock){['#company','#period','#uber-file','#cash-file','#operations-file'].forEach(s=>{$(s).disabled=lock})}
-function showNextCompany(){
-  const btn=$('#pl-next-btn'),st=lastChecklistStatus;btn.hidden=true;if(!st)return;
-  const all=Object.values(profiles),next=all.find(p=>p.id!==profile.id&&st[p.id]&&!st[p.id].inPennylane&&!st[p.id].error);
-  if(next){btn.textContent=`Passer à ${next.name} →`;btn.dataset.id=next.id;btn.hidden=false}
-  else if(all.every(p=>st[p.id]&&st[p.id].inPennylane))$('#pl-msg').textContent+=' Toutes les sociétés de cette période sont maintenant dans Pennylane.';
-}
-if(PENNYLANE_AVAILABLE)$('#pl-next-btn').addEventListener('click',()=>{
-  const id=$('#pl-next-btn').dataset.id;if(!id||sendingNow)return;
-  const sel=$('#company');sel.value=id;sel.dispatchEvent(new Event('change',{bubbles:true}));
+// "Nouvel import" : repart d'une page vierge (aucune société choisie, fichiers, aperçu et suivi
+// d'envoi effacés) et remonte en haut. C'est l'utilisateur qui choisit la société suivante,
+// l'outil ne la suggère pas (demandé par Baptiste le 5 oct. 2026).
+if(PENNYLANE_AVAILABLE)$('#pl-new-btn').addEventListener('click',()=>{
+  if(sendingNow)return;
+  $('#company').value='';setProfile('');
   window.scrollTo({top:0,behavior:'smooth'});
+  $('#company').focus({preventScroll:true});
 });
 window.addEventListener('beforeunload',e=>{if(sendingNow){e.preventDefault();e.returnValue=''}});
 if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()=>{
@@ -817,7 +827,7 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()
   const todo=entries.filter(e=>!done.has(e.label));if(!todo.length)return;
   if(!confirm(`Confirmer l'envoi réel de ${todo.length} écriture(s) dans Pennylane pour ${profile.name} ? Cette action crée l'écriture directement et n'est pas réversible depuis cet outil.`))return;
   const btn=$('#pennylane-send-btn'),prevLabel=btn.textContent,processWas=$('#process').disabled,name=profile.name,periodLabel=periodInfo().label;
-  sendingNow=true;setFormLocked(true);$('#process').disabled=true;btn.disabled=true;btn.textContent='Envoi en cours…';$('#pennylane-preview-btn').disabled=true;$('#pl-next-btn').hidden=true;
+  sendingNow=true;setFormLocked(true);$('#process').disabled=true;btn.disabled=true;btn.textContent='Envoi en cours…';$('#pennylane-preview-btn').disabled=true;
   const steps=entries.map(e=>({label:`Création de l'écriture ${e.label} (${e.lines.length} lignes)`,state:done.has(e.label)?'done':'pending'}));
   steps.push({label:'Relecture dans Pennylane pour tout confirmer',state:'pending'});
   const checks=entries.map(e=>({label:e.label,date:e.date})),last=steps.length-1;
@@ -847,11 +857,11 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()
   }catch(err){if(!failed){steps[last].state='error';steps[last].detail=errText(err)}}
   sendingNow=false;setFormLocked(false);$('#process').disabled=processWas;btn.textContent=prevLabel;
   if(steps.every(s=>s.state==='done')){
-    plDraw('success',`${name} · ${periodLabel} : terminé`,steps,`Terminé : les ${entries.length} écritures de ${name} (${periodLabel}) sont créées et vérifiées dans Pennylane. Vous pouvez passer à la société suivante.`);
+    plDraw('success',`${name} · ${periodLabel} : terminé`,steps,`Terminé : les ${entries.length} écritures de ${name} (${periodLabel}) sont créées et vérifiées dans Pennylane. Cliquez sur « Nouvel import » pour traiter une autre société.`);
     $('#pennylane-status').textContent='Envoi terminé et vérifié.';
     btn.textContent='Confirmer et envoyer à Pennylane';
     $('#pennylane-preview-btn').disabled=true;pennylanePayload=null;btn.disabled=true;
-    await refreshChecklist();showNextCompany();
+    refreshChecklist();
   }else{
     const bad=steps.find(s=>s.state==='error')||steps.find(s=>s.state==='pending');
     plDraw('error',`${name} · ${periodLabel} : envoi incomplet`,steps,`Envoi incomplet — étape en échec : « ${bad.label} »${bad.detail?` (${bad.detail})`:''}. Les écritures déjà créées sont conservées. Ne passez pas à la société suivante : cliquez sur « Reprendre l'envoi » pour envoyer uniquement ce qui manque.`);

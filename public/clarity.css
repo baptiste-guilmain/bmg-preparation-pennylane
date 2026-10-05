@@ -94,8 +94,16 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .pl-msg{margin:14px 0 0;padding:12px 14px;border-radius:9px;font-size:13px;line-height:1.5;background:var(--green-soft);color:var(--green-dark)}
 .pl-progress.success .pl-msg{font-weight:700}
 .pl-progress.error .pl-msg{background:#fff6f5;color:var(--red)}
-#pl-next-btn{margin-top:12px;border:0;border-radius:9px;height:44px;padding:0 18px;font-weight:700;cursor:pointer;background:var(--green);color:#fff}
-#pl-next-btn:hover{background:var(--green-dark)}
+.pl-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.pl-actions button{border-radius:9px;height:44px;padding:0 18px;font-weight:700;cursor:pointer}
+#pl-new-btn{border:0;background:var(--green);color:#fff}
+#pl-new-btn:hover{background:var(--green-dark)}
+
+/* Page vierge : aucune société choisie -> pas de zones de dépôt ni de bouton tant que
+   l'utilisateur n'a pas choisi lui-même la société (évite de déposer des fichiers sur la
+   société présélectionnée par défaut). */
+.flow-panel.blank .drop-grid,.flow-panel.blank .preflight{display:none}
+.pl-actions button[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){.pl-bar i,.pl-steps .dot{animation:none!important;transition:none}}
 
 /* Suivi du mois : dérivé en direct de Pennylane (et de l'archivage Drive) pour
