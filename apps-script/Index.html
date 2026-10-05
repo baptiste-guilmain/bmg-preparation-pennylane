@@ -1539,7 +1539,7 @@ function buildRows(uber, cash) {
     }
     uber.payouts.sort(((x, y) => x[0] === "\xc0 venir" ? 1 : y[0] === "\xc0 venir" ? -1 : x[0].split("/").reverse().join("").localeCompare(y[0].split("/").reverse().join("")))).forEach((([d, v]) => rows.push(line(date, journal, a.uberSettlement, `${ul} ${d === "\xc0 venir" ? "a venir" : d}`, Math.abs(v)))));
     const uberDebit = round(rows.reduce(((sum, r) => sum + (r.debit || 0)), 0)), uberCredit = round(rows.reduce(((sum, r) => sum + (r.credit || 0)), 0)), settlementGap = round(uberCredit - uberDebit);
-    const isOtacos = profile.vatBreakdown === "otacos-5.5-and-10", canReconcileGap = profile.id === "hagtacos" || isOtacos && Math.abs(settlementGap) <= 10;
+    const isOtacos = profile.vatBreakdown === "otacos-5.5-and-10", canReconcileGap = profile.id === "hagtacos" || isOtacos && Math.abs(settlementGap) <= 10 || Math.abs(settlementGap) <= .05;
     if (canReconcileGap && Math.abs(settlementGap) > .005) {
         const gapTtc = Math.abs(settlementGap), gapHt = round(gapTtc / (1 + profile.expenseVat)), gapVat = round(gapTtc - gapHt), isDebit = settlementGap > 0;
         const gapLabel = profile.id === "hagtacos" ? "\xc9cart de r\xe8glement non significatif" : "\xc9cart d\u2019arrondi de r\xe8glement Uber";
@@ -1570,6 +1570,14 @@ function buildRows(uber, cash) {
             rows.push(line(date, "VT", a.salesSP55, cl, null, round(cash.sp55), .055), line(date, "VT", a.salesAE55, cl, null, round(cash.ae55), .055), line(date, "VT", a.vat55, cl, null, round(cash.vat55)), line(date, "VT", a.salesSP10, cl, null, round(cash.sp10), .1), line(date, "VT", a.salesAE10, cl, null, round(cash.ae10), .1), line(date, "VT", a.vat10, cl, null, round(cash.vat10)), line(date, "VT", a.cash, cl, cash.total));
         } else {
             rows.push(line(date, "VT", a.liquid, cl, null, cash.liquid.ht, profile.uberVat), line(date, "VT", a.vat10, cl, null, cash.liquid.vat), line(date, "VT", a.solid, cl, null, cash.solid.ht, profile.uberVat), line(date, "VT", a.vat10, cl, null, cash.solid.vat), line(date, "VT", a.alcohol, cl, null, cash.alcohol.ht, .2), line(date, "VT", a.vat20, cl, null, cash.alcohol.vat), line(date, "VT", a.cash, cl, cash.total));
+        }
+    }
+    const cashRows = rows.filter((r => r.label === cl));
+    if (cashRows.length) {
+        const cd = round(cashRows.reduce(((s, r) => s + (r.debit || 0)), 0) - cashRows.reduce(((s, r) => s + (r.credit || 0)), 0));
+        if (Math.abs(cd) > .005 && Math.abs(cd) <= .05) {
+            const target = cashRows.filter((r => r.credit != null && r.vat != null)).sort(((x, y) => y.credit - x.credit))[0];
+            if (target) target.credit = round(target.credit + cd);
         }
     }
     return {

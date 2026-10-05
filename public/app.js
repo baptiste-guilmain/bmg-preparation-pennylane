@@ -587,7 +587,10 @@ function buildRows(uber,cash){
   // demande de Baptiste, sur toutes les sociétés O'Tacos (pas seulement HAGTACOS) :
   // reprend le seuil de tolérance qu'il avait déjà validé avec l'expert-comptable
   // le 7 sept. 2026 pour les écarts d'arrondi Uber cumulés.
-  const isOtacos=profile.vatBreakdown==='otacos-5.5-and-10',canReconcileGap=profile.id==='hagtacos'||(isOtacos&&Math.abs(settlementGap)<=10);
+  // Tout profil : un écart de quelques centimes (<= 5) est un simple arrondi Uber, rapproché
+  // comme chez les O'Tacos (PDFK septembre 2026 : "déséquilibrée de 0,01 €", Pennylane refuse
+  // tout déséquilibre même d'un centime).
+  const isOtacos=profile.vatBreakdown==='otacos-5.5-and-10',canReconcileGap=profile.id==='hagtacos'||(isOtacos&&Math.abs(settlementGap)<=10)||Math.abs(settlementGap)<=.05;
   // Seuil > .005 (pas > .01) : un écart de tout juste 1 centime (settlementGap
   // exactement égal à .01) doit être rapproché comme les autres, sinon il passe
   // sous le tolérance de notre propre contrôle d'équilibre (également > .01),
@@ -634,6 +637,18 @@ function buildRows(uber,cash){
         line(date,'VT',a.cash,cl,cash.total));
     }else{
       rows.push(line(date,'VT',a.liquid,cl,null,cash.liquid.ht,profile.uberVat),line(date,'VT',a.vat10,cl,null,cash.liquid.vat),line(date,'VT',a.solid,cl,null,cash.solid.ht,profile.uberVat),line(date,'VT',a.vat10,cl,null,cash.solid.vat),line(date,'VT',a.alcohol,cl,null,cash.alcohol.ht,.20),line(date,'VT',a.vat20,cl,null,cash.alcohol.vat),line(date,'VT',a.cash,cl,cash.total));
+    }
+  }
+  // Arrondi de la caisse, TOUS adaptateurs : HT et TVA arrondis séparément peuvent différer du
+  // TTC de 1 à 2 centimes (PDFK septembre 2026 : "déséquilibrée de 0,01 €"). Pennylane refuse
+  // tout déséquilibre : l'écart (<= 5 centimes) est absorbé dans le HT de la plus grosse ligne
+  // de ventes de la caisse, le TTC (compte de caisse) et la TVA restent ceux du rapport.
+  const cashRows=rows.filter(r=>r.label===cl);
+  if(cashRows.length){
+    const cd=round(cashRows.reduce((s,r)=>s+(r.debit||0),0)-cashRows.reduce((s,r)=>s+(r.credit||0),0));
+    if(Math.abs(cd)>.005&&Math.abs(cd)<=.05){
+      const target=cashRows.filter(r=>r.credit!=null&&r.vat!=null).sort((x,y)=>y.credit-x.credit)[0];
+      if(target) target.credit=round(target.credit+cd);
     }
   }
   return {rows,revenue,salesHt,salesVat,marketingTtc};
