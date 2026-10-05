@@ -55,6 +55,23 @@ pour régénérer `Index.html`. Une vérification GitHub Actions
 régénéré après un changement dans `public/` — un rappel pour ne pas oublier
 cette étape avant de pousser.
 
+### Piège majeur : Google tronque le script s'il contient des commentaires
+
+Constaté le 5 oct. 2026 : le HtmlService d'Apps Script retire lui-même les
+commentaires du `<script>` avec un filtre naïf. Selon le contenu des commentaires
+(apostrophes, guillemets), il se trompe et **coupe des lignes au `//` d'une URL**
+(`http://schemas...` dans l'export Excel) : le script servi est tronqué, le navigateur
+lève `SyntaxError: Invalid or unexpected token`, et **la page reste figée sur son HTML
+de départ, sans aucun message** (aperçu impossible, suivi absent). Ce défaut est
+invisible en local (le fichier est correct) et n'apparaît que sur Apps Script.
+
+`build-appsscript.mjs` retire donc tous les commentaires AVANT l'envoi, avec `terser`
+(version figée, sans compression ni renommage : la logique n'est pas touchée) et
+refuse de construire s'il en reste. **Ne jamais contourner cette étape.** Pour
+diagnostiquer un futur écran figé : ajouter temporairement dans `Index.html` un
+`<script>` qui affiche `e.message`, `e.lineno` et la longueur de `document.scripts`
+(le numéro de ligne est relatif au début du script) puis le comparer au fichier local.
+
 ### Publier sur Apps Script avec clasp (recommandé)
 
 **⚠️ Il existe DEUX déploiements distincts, avec deux URL `/exec` différentes

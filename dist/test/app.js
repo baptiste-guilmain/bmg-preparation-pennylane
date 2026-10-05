@@ -790,10 +790,10 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()
   steps.push({label:'Relecture dans Pennylane pour tout confirmer',state:'pending'});
   const checks=entries.map(e=>({label:e.label,date:e.date})),last=steps.length-1;
   const title=`Envoi de ${name} · ${periodLabel} vers Pennylane`,RUN="Envoi en cours — ne fermez pas cette page et ne changez pas de société tant que ce n'est pas terminé.";
-  const errText=e=>String((e&&e.message)||e).replace(/^Error:\s*/,'');
+  const errText=e=>{const m=String((e&&e.message)||e);return m.indexOf('Error: ')===0?m.slice(7):m};
   plDraw('running',title,steps,RUN);$('#pennylane-progress').scrollIntoView({behavior:'smooth',block:'nearest'});
   let failed=false;
-  for(let i=0;i<entries.length;i++){
+  for(let i=0;entries.length>i;i++){
     const e=entries[i];if(done.has(e.label))continue;
     steps[i].state='running';plDraw('running',title,steps,RUN);
     try{await scriptRun('pennylanePost',companyId,[e],true);done.add(e.label);steps[i].state='done'}
@@ -807,7 +807,7 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()
     entries.forEach((e,i)=>{
       if(steps[i].state==='error'&&v.found.includes(e.label)){steps[i].state='done';steps[i].detail='finalement présente dans Pennylane'}
       // Écriture introuvable à la relecture : on la retire des "faites" pour que la
-      // reprise la renvoie (le contrôle anti-doublon serveur protège si elle apparaît entre-temps).
+      // reprise la renvoie (le contrôle anti-doublon serveur protège si elle apparait entre-temps).
       if(v.missing.includes(e.label)){done.delete(e.label);if(steps[i].state==='done'){steps[i].state='error';steps[i].detail='introuvable dans Pennylane à la relecture'}}
     });
     if(v.missing.length){if(!failed){steps[last].state='error';steps[last].detail='relecture incomplète'}}
