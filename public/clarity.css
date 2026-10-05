@@ -67,6 +67,37 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 #pennylane-send-btn:not(:disabled):hover{background:#8a5510}
 .pennylane-actions button:disabled{background:#e8e8e5;color:#9a9a96;border:0;cursor:not-allowed}
 
+/* Barre de suivi de l'envoi à Pennylane : une étape par écriture + une relecture
+   finale, pour savoir à tout moment où l'on en est et quand passer à la société
+   suivante (demandé par Baptiste le 5 oct. 2026 : "là je ne sais pas où ça en est"). */
+.pl-progress{margin:16px 0;padding:16px 18px;background:#fff;border:1px solid var(--line);border-radius:12px}
+.pl-progress.success{border-color:var(--green)}
+.pl-progress.error{border-color:var(--red)}
+.pl-progress-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px}
+.pl-progress-head strong{font-size:14px}
+#pl-count{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pl-bar{height:10px;border-radius:99px;background:#e6e9ee;overflow:hidden}
+.pl-bar i{display:block;height:100%;width:0;background:var(--green);border-radius:99px;transition:width .5s ease}
+.pl-progress.running .pl-bar i{background:repeating-linear-gradient(45deg,var(--green) 0 10px,var(--green-dark) 10px 20px);background-size:28px 28px;animation:pl-slide 1s linear infinite}
+.pl-progress.error .pl-bar i{background:var(--red)}
+@keyframes pl-slide{to{background-position:28px 0}}
+.pl-steps{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:9px}
+.pl-steps li{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;line-height:1.4;color:var(--muted)}
+.pl-steps .dot{width:18px;height:18px;border-radius:50%;border:1.5px solid #ccd0d4;display:grid;place-items:center;font-size:10px;flex:none;margin-top:1px}
+.pl-steps li.running{color:var(--ink);font-weight:600}
+.pl-steps li.running .dot{border-color:var(--green);border-top-color:transparent;animation:pl-spin .8s linear infinite}
+@keyframes pl-spin{to{transform:rotate(360deg)}}
+.pl-steps li.done{color:var(--green-dark)}
+.pl-steps li.done .dot{background:var(--green);border-color:var(--green);color:#fff}
+.pl-steps li.error{color:var(--red);font-weight:600}
+.pl-steps li.error .dot{background:var(--red);border-color:var(--red);color:#fff}
+.pl-msg{margin:14px 0 0;padding:12px 14px;border-radius:9px;font-size:13px;line-height:1.5;background:var(--green-soft);color:var(--green-dark)}
+.pl-progress.success .pl-msg{font-weight:700}
+.pl-progress.error .pl-msg{background:#fff6f5;color:var(--red)}
+#pl-next-btn{margin-top:12px;border:0;border-radius:9px;height:44px;padding:0 18px;font-weight:700;cursor:pointer;background:var(--green);color:#fff}
+#pl-next-btn:hover{background:var(--green-dark)}
+@media(prefers-reduced-motion:reduce){.pl-bar i,.pl-steps .dot{animation:none!important;transition:none}}
+
 /* Suivi du mois : dérivé en direct de Pennylane (et de l'archivage Drive) pour
    la période choisie, jamais d'une case à cocher manuelle — pour ne jamais
    pouvoir oublier de cocher ou doublonner une société sur 15, et pour que

@@ -295,6 +295,26 @@ function checklistStatus(period) {
   return result;
 }
 
+// Relecture (lecture seule) : confirme dans Pennylane que chaque écriture
+// attendue ({label, date}) existe réellement. Appelée par la barre de suivi de
+// l'envoi (étape finale) et après un échec, pour savoir ce qui a malgré tout été
+// créé avant de proposer de reprendre l'envoi.
+function pennylaneVerify(companyId, checks) {
+  var token = pennylaneGetToken_(companyId);
+  var byDate = {};
+  checks.forEach(function (c) { (byDate[c.date] = byDate[c.date] || []).push(c.label); });
+  var found = [], missing = [];
+  Object.keys(byDate).forEach(function (date) {
+    var filter = JSON.stringify([{ field: 'date', operator: 'eq', value: date }]);
+    var items = pennylaneListAll_(token, '/ledger_entries?filter=' + encodeURIComponent(filter));
+    byDate[date].forEach(function (label) {
+      var exists = items.some(function (it) { return it.label === label; });
+      (exists ? found : missing).push(label);
+    });
+  });
+  return { found: found, missing: missing };
+}
+
 function pennylanePost(companyId, entries, confirm) {
   if (confirm !== true) throw new Error('Confirmation manquante.');
   var result = pennylaneResolveEntries_(companyId, entries);

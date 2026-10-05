@@ -34,6 +34,10 @@ const PENNYLANE_AVAILABLE=typeof google!=='undefined'&&!!google.script&&!!google
 // fin de la section 2, avant que la section 8 (où cette variable vivait
 // avant) ne s'exécute.
 let checklistToken=0;
+// Mêmes raisons (TDZ) : lus par updatePreflight()/resetPennylanePanel()/
+// refreshChecklist(), appelées dès le chargement, avant la section 8.
+let sendingNow=false;
+let lastChecklistStatus=null;
 
 let profile = getProfile('strasgame');
 let state={files:{uber:null,cash:null,operations:null}, rows:[], allShown:false, valid:false};
@@ -56,7 +60,7 @@ function setFile(file,zone,key){
 function setStep(n){document.querySelectorAll('.steps .step').forEach((el,i)=>el.classList.toggle('active',i<n))}
 function updatePreflight(){
   const uberReady=Boolean(state.files.uber),cashReady=Boolean(state.files.cash),operationsReady=Boolean(state.files.operations),needsCash=profile.mode==='uber-and-cash',otacosCash=profile.cashAdapter==='otacos-taxes',cashInputsReady=otacosCash?cashReady&&operationsReady:cashReady,ready=uberReady&&(!needsCash||cashInputsReady);
-  $('#process').disabled=!ready; $('.status-dot').classList.toggle('ready',ready);
+  $('#process').disabled=!ready||sendingNow; $('.status-dot').classList.toggle('ready',ready);
   let title=needsCash?(otacosCash?`Trois imports obligatoires pour ${profile.name}`:`Deux imports obligatoires pour ${profile.name}`):`Import Uber obligatoire pour ${profile.name}`;
   let help=needsCash?(otacosCash?"Ajoutez l'export Uber, le fichier Taxes et les Opérations quotidiennes.":"Ajoutez l'import Uber et l'import caisse avant de créer l'écriture comptable."):"Ajoutez l'export Uber pour créer l'écriture comptable.";
   if(needsCash&&uberReady&&!cashInputsReady){title='Import Uber reçu';help=otacosCash?"Ajoutez maintenant les fichiers Taxes et Opérations quotidiennes.":"Ajoutez maintenant l'import caisse pour créer l'écriture comptable."}
@@ -663,8 +667,10 @@ function scriptRun(fnName,...args){
   });
 }
 function resetPennylanePanel(){
+  if(sendingNow)return;
   pennylanePayload=null;
   if(!PENNYLANE_AVAILABLE)return;
+  $('#pennylane-progress').hidden=true;
   const box=$('#pennylane-preview');box.hidden=true;box.innerHTML='';
   $('#pennylane-send-btn').disabled=true;
   $('#pennylane-status').textContent='Aucun aperçu généré';
@@ -681,11 +687,13 @@ async function refreshChecklist(){
   const period=$('#period').value;
   if(!period){panel.hidden=true;return;}
   const myToken=++checklistToken;
+  lastChecklistStatus=null;
   panel.hidden=false;
   $('#checklist-count').textContent='Vérification…';
   try{
     const status=await scriptRun('checklistStatus',period);
     if(myToken!==checklistToken)return;
+    lastChecklistStatus=status;
     const items=Object.values(profiles);
     // Une société en erreur (API refusée, jeton invalide...) ne doit JAMAIS passer
     // pour "rien fait" : c'est ce qui affichait "0 / 15" au lieu de signaler le
@@ -735,6 +743,8 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-preview-btn').addEventListener('click',asyn
     const preview=await scriptRun('pennylanePreview',profile.id,entries);
     pennylanePayload={companyId:profile.id,entries};
     renderPennylanePreview(preview);
+    $('#pennylane-progress').hidden=true;
+    $('#pennylane-send-btn').textContent='Confirmer et envoyer à Pennylane';
     $('#pennylane-send-btn').disabled=false;
     $('#pennylane-status').textContent='Aperçu généré — vérifiez les comptes et montants avant de confirmer.';
   }catch(e){
@@ -742,19 +752,80 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-preview-btn').addEventListener('click',asyn
     $('#pennylane-status').textContent=`Erreur : ${e.message||e}`;
   }finally{btn.disabled=!state.valid;btn.textContent=prev}
 });
+// Barre de suivi de l'envoi : une étape par écriture + une relecture finale dans
+// Pennylane, pour savoir à tout moment où l'on en est et quand passer à la société
+// suivante (demandé par Baptiste le 5 oct. 2026 : "là je ne sais pas où ça en est").
+// Les écritures partent UNE PAR UNE (un appel serveur chacune) : c'est ce qui rend
+// la progression réelle, et permet de reprendre uniquement ce qui manque après un échec.
+function plDraw(cls,title,steps,msg){
+  const p=$('#pennylane-progress');p.hidden=false;p.className=`pl-progress ${cls}`;
+  const done=steps.filter(s=>s.state==='done').length,running=steps.some(s=>s.state==='running')?.5:0;
+  const pct=Math.round((done+running)/steps.length*100);
+  $('#pl-title').textContent=title;$('#pl-count').textContent=`${done} / ${steps.length} étapes`;
+  $('#pl-fill').style.width=`${pct}%`;$('.pl-bar').setAttribute('aria-valuenow',pct);
+  $('#pl-steps').innerHTML=steps.map(s=>`<li class="${s.state}"><span class="dot">${s.state==='done'?'✓':s.state==='error'?'!':''}</span><span>${esc(s.label)}${s.detail?` — ${esc(s.detail)}`:''}</span></li>`).join('');
+  $('#pl-msg').textContent=msg;
+}
+function setFormLocked(lock){['#company','#period','#uber-file','#cash-file','#operations-file'].forEach(s=>{$(s).disabled=lock})}
+function showNextCompany(){
+  const btn=$('#pl-next-btn'),st=lastChecklistStatus;btn.hidden=true;if(!st)return;
+  const all=Object.values(profiles),next=all.find(p=>p.id!==profile.id&&st[p.id]&&!st[p.id].inPennylane&&!st[p.id].error);
+  if(next){btn.textContent=`Passer à ${next.name} →`;btn.dataset.id=next.id;btn.hidden=false}
+  else if(all.every(p=>st[p.id]&&st[p.id].inPennylane))$('#pl-msg').textContent+=' Toutes les sociétés de cette période sont maintenant dans Pennylane.';
+}
+if(PENNYLANE_AVAILABLE)$('#pl-next-btn').addEventListener('click',()=>{
+  const id=$('#pl-next-btn').dataset.id;if(!id||sendingNow)return;
+  const sel=$('#company');sel.value=id;sel.dispatchEvent(new Event('change',{bubbles:true}));
+  window.scrollTo({top:0,behavior:'smooth'});
+});
+window.addEventListener('beforeunload',e=>{if(sendingNow){e.preventDefault();e.returnValue=''}});
 if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()=>{
-  if(!pennylanePayload)return;
-  if(!confirm(`Confirmer l'envoi réel de ${pennylanePayload.entries.length} écriture(s) dans Pennylane pour ${profile.name} ? Cette action crée l'écriture directement et n'est pas réversible depuis cet outil.`))return;
-  const btn=$('#pennylane-send-btn'),prev=btn.textContent;btn.disabled=true;btn.textContent='Envoi en cours…';
+  if(!pennylanePayload||sendingNow)return;
+  const {companyId,entries}=pennylanePayload,done=pennylanePayload.done||(pennylanePayload.done=new Set());
+  const todo=entries.filter(e=>!done.has(e.label));if(!todo.length)return;
+  if(!confirm(`Confirmer l'envoi réel de ${todo.length} écriture(s) dans Pennylane pour ${profile.name} ? Cette action crée l'écriture directement et n'est pas réversible depuis cet outil.`))return;
+  const btn=$('#pennylane-send-btn'),prevLabel=btn.textContent,processWas=$('#process').disabled,name=profile.name,periodLabel=periodInfo().label;
+  sendingNow=true;setFormLocked(true);$('#process').disabled=true;btn.disabled=true;btn.textContent='Envoi en cours…';$('#pennylane-preview-btn').disabled=true;$('#pl-next-btn').hidden=true;
+  const steps=entries.map(e=>({label:`Création de l'écriture ${e.label} (${e.lines.length} lignes)`,state:done.has(e.label)?'done':'pending'}));
+  steps.push({label:'Relecture dans Pennylane pour tout confirmer',state:'pending'});
+  const checks=entries.map(e=>({label:e.label,date:e.date})),last=steps.length-1;
+  const title=`Envoi de ${name} · ${periodLabel} vers Pennylane`,RUN="Envoi en cours — ne fermez pas cette page et ne changez pas de société tant que ce n'est pas terminé.";
+  const errText=e=>String((e&&e.message)||e).replace(/^Error:\s*/,'');
+  plDraw('running',title,steps,RUN);$('#pennylane-progress').scrollIntoView({behavior:'smooth',block:'nearest'});
+  let failed=false;
+  for(let i=0;i<entries.length;i++){
+    const e=entries[i];if(done.has(e.label))continue;
+    steps[i].state='running';plDraw('running',title,steps,RUN);
+    try{await scriptRun('pennylanePost',companyId,[e],true);done.add(e.label);steps[i].state='done'}
+    catch(err){steps[i].state='error';steps[i].detail=errText(err);failed=true;break}
+  }
+  // Relecture finale. Aussi lancée après un échec : une écriture a pu être créée
+  // malgré l'erreur de réponse, et il faut le savoir avant de proposer de reprendre.
+  if(!failed){steps[last].state='running';plDraw('running',title,steps,RUN)}
   try{
-    const created=await scriptRun('pennylanePost',pennylanePayload.companyId,pennylanePayload.entries,true);
-    $('#pennylane-status').textContent=`${created.length} écriture(s) créée(s) dans Pennylane.`;
+    const v=await scriptRun('pennylaneVerify',companyId,checks);v.found.forEach(l=>done.add(l));
+    entries.forEach((e,i)=>{
+      if(steps[i].state==='error'&&v.found.includes(e.label)){steps[i].state='done';steps[i].detail='finalement présente dans Pennylane'}
+      // Écriture introuvable à la relecture : on la retire des "faites" pour que la
+      // reprise la renvoie (le contrôle anti-doublon serveur protège si elle apparaît entre-temps).
+      if(v.missing.includes(e.label)){done.delete(e.label);if(steps[i].state==='done'){steps[i].state='error';steps[i].detail='introuvable dans Pennylane à la relecture'}}
+    });
+    if(v.missing.length){if(!failed){steps[last].state='error';steps[last].detail='relecture incomplète'}}
+    else steps[last].state='done';
+  }catch(err){if(!failed){steps[last].state='error';steps[last].detail=errText(err)}}
+  sendingNow=false;setFormLocked(false);$('#process').disabled=processWas;btn.textContent=prevLabel;
+  if(steps.every(s=>s.state==='done')){
+    plDraw('success',`${name} · ${periodLabel} : terminé`,steps,`Terminé : les ${entries.length} écritures de ${name} (${periodLabel}) sont créées et vérifiées dans Pennylane. Vous pouvez passer à la société suivante.`);
+    $('#pennylane-status').textContent='Envoi terminé et vérifié.';
+    btn.textContent='Confirmer et envoyer à Pennylane';
     $('#pennylane-preview-btn').disabled=true;pennylanePayload=null;btn.disabled=true;
-    refreshChecklist();
-  }catch(e){
-    $('#pennylane-status').textContent=`Échec de l'envoi : ${e.message||e}`;
-    btn.disabled=false;
-  }finally{btn.textContent=prev}
+    await refreshChecklist();showNextCompany();
+  }else{
+    const bad=steps.find(s=>s.state==='error')||steps.find(s=>s.state==='pending');
+    plDraw('error',`${name} · ${periodLabel} : envoi incomplet`,steps,`Envoi incomplet — étape en échec : « ${bad.label} »${bad.detail?` (${bad.detail})`:''}. Les écritures déjà créées sont conservées. Ne passez pas à la société suivante : cliquez sur « Reprendre l'envoi » pour envoyer uniquement ce qui manque.`);
+    $('#pennylane-status').textContent='Envoi incomplet — voir le détail ci-dessus.';
+    btn.textContent="Reprendre l'envoi";btn.disabled=false;$('#pennylane-preview-btn').disabled=!state.valid;
+  }
 });
 // --- 9. Export Excel (écriture comptable téléchargeable) -------------------
 async function makeXlsx(rows,type='blob'){
