@@ -67,6 +67,8 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .pennylane-preview td{padding:8px;border-bottom:1px solid #edeef0}
 .pennylane-preview .entry-title{padding:9px 8px;font-weight:700;background:#f2ecdd;font-size:12px}
 .pennylane-preview .num{text-align:right;font-variant-numeric:tabular-nums}
+.vat-ok{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--green-soft);color:var(--green-dark);font-size:10px;font-weight:700;white-space:nowrap}
+.vat-warn{display:inline-block;margin-left:6px;color:var(--amber);font-size:10px;font-weight:700}
 .pennylane-actions{display:flex;gap:10px}
 .pennylane-actions button{border:0;border-radius:9px;height:44px;padding:0 18px;font-weight:700;cursor:pointer}
 #pennylane-preview-btn{background:#fff;border:1px solid #d9c79a;color:#7a5a12}
@@ -1791,16 +1793,28 @@ function groupRowsForPennylane() {
             accountNumber: l.account,
             debit: l.debit,
             credit: l.credit,
-            label: l.label
+            label: l.label,
+            vatRate: l.vat
         })))
     })));
+}
+
+const VAT_NAMES = {
+    FR_55: "5,5 %",
+    FR_100: "10 %",
+    FR_200: "20 %"
+};
+
+function vatTag(l) {
+    if (!l.wantedVatRate) return "";
+    return l.vatOk ? ` <span class="vat-ok">TVA ${VAT_NAMES[l.vatRate] || esc(l.vatRate)}</span>` : ` <span class="vat-warn">\u26a0 aucun compte \xab ${VAT_NAMES[l.wantedVatRate] || esc(l.wantedVatRate)} \xbb dans ce dossier : taux non renseign\xe9</span>`;
 }
 
 function renderPennylanePreview(preview) {
     const box = $("#pennylane-preview");
     box.hidden = false;
     box.innerHTML = preview.map((e => {
-        const rows = e.lines.map((l => `<tr><td>${esc(l.accountNumber)}</td><td>${esc(l.accountLabel || "")}</td><td>${esc(l.label)}</td><td class="num">${l.debit !== "0.00" ? money.format(+l.debit) : "\u2014"}</td><td class="num">${l.credit !== "0.00" ? money.format(+l.credit) : "\u2014"}</td></tr>`)).join("");
+        const rows = e.lines.map((l => `<tr><td>${esc(l.accountNumber)}</td><td>${esc(l.accountLabel || "")}${vatTag(l)}</td><td>${esc(l.label)}</td><td class="num">${l.debit !== "0.00" ? money.format(+l.debit) : "\u2014"}</td><td class="num">${l.credit !== "0.00" ? money.format(+l.credit) : "\u2014"}</td></tr>`)).join("");
         return `<div class="entry-title">${esc(e.label)} \xb7 d\xe9bit ${money.format(e.debitTotal)} = cr\xe9dit ${money.format(e.creditTotal)}</div><table><thead><tr><th>Compte</th><th>Libell\xe9 compte</th><th>Libell\xe9 ligne</th><th class="num">D\xe9bit</th><th class="num">Cr\xe9dit</th></tr></thead><tbody>${rows}</tbody></table>`;
     })).join("");
 }

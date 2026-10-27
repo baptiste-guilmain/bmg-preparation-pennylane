@@ -783,13 +783,21 @@ function groupRowsForPennylane(){
   const p=periodInfo(),isoDate=p.last.toISOString().slice(0,10);
   return [...groups.entries()].map(([key,lines])=>({
     label:`${key} ${p.label}`,date:isoDate,journalCode:'VT',
-    lines:lines.map(l=>({accountNumber:l.account,debit:l.debit,credit:l.credit,label:l.label}))
+    lines:lines.map(l=>({accountNumber:l.account,debit:l.debit,credit:l.credit,label:l.label,vatRate:l.vat}))
   }));
+}
+// Taux de TVA du compte de ventes retenu dans Pennylane (variante du compte, voir
+// pennylaneResolveAccountId_ dans Code.gs) : l'expert-comptable doit le voir renseigné sur chaque
+// ligne de ventes (comptes 7). Avertissement si aucune variante au bon taux n'existe.
+const VAT_NAMES={FR_55:'5,5 %',FR_100:'10 %',FR_200:'20 %'};
+function vatTag(l){
+  if(!l.wantedVatRate)return '';
+  return l.vatOk?` <span class="vat-ok">TVA ${VAT_NAMES[l.vatRate]||esc(l.vatRate)}</span>`:` <span class="vat-warn">⚠ aucun compte « ${VAT_NAMES[l.wantedVatRate]||esc(l.wantedVatRate)} » dans ce dossier : taux non renseigné</span>`;
 }
 function renderPennylanePreview(preview){
   const box=$('#pennylane-preview');box.hidden=false;
   box.innerHTML=preview.map(e=>{
-    const rows=e.lines.map(l=>`<tr><td>${esc(l.accountNumber)}</td><td>${esc(l.accountLabel||'')}</td><td>${esc(l.label)}</td><td class="num">${l.debit!=='0.00'?money.format(+l.debit):'—'}</td><td class="num">${l.credit!=='0.00'?money.format(+l.credit):'—'}</td></tr>`).join('');
+    const rows=e.lines.map(l=>`<tr><td>${esc(l.accountNumber)}</td><td>${esc(l.accountLabel||'')}${vatTag(l)}</td><td>${esc(l.label)}</td><td class="num">${l.debit!=='0.00'?money.format(+l.debit):'—'}</td><td class="num">${l.credit!=='0.00'?money.format(+l.credit):'—'}</td></tr>`).join('');
     return `<div class="entry-title">${esc(e.label)} · débit ${money.format(e.debitTotal)} = crédit ${money.format(e.creditTotal)}</div><table><thead><tr><th>Compte</th><th>Libellé compte</th><th>Libellé ligne</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead><tbody>${rows}</tbody></table>`;
   }).join('');
 }

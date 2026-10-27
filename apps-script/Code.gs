@@ -128,15 +128,39 @@ function pennylaneResolveJournalId_(token, code, cache) {
   return found.id;
 }
 
-function pennylaneResolveAccountId_(token, number, cache) {
-  if (cache.accounts[number]) return cache.accounts[number];
+// Taux de TVA des comptes de ventes (classe 7). Dans Pennylane, un même numéro de compte
+// existe en plusieurs VARIANTES, une par taux (vat_rate "FR_55" = 5,5 %, "FR_100" = 10 %,
+// "FR_200" = 20 %) et une sans taux ("any"). Une ligne postée sur la variante "any" s'affiche
+// sans taux de TVA : l'expert-comptable devait la corriger à la main dans chaque dossier
+// (retour du 27 oct. 2026 ; constaté sur ALDN septembre, toutes les lignes de ventes sur "any",
+// et sur FARTACOS août, lignes modifiées à la main le 14 sept.). On choisit donc la variante qui
+// porte le taux attendu de la ligne ; à défaut, comportement historique (+ avertissement affiché
+// dans l'aperçu). L'API ne permet pas de modifier le taux d'un compte existant.
+var PENNYLANE_VAT_CODES = { '0.055': 'FR_55', '0.1': 'FR_100', '0.2': 'FR_200' };
+
+function pennylaneResolveAccountId_(token, number, cache, vatRate) {
+  var wanted = null;
+  if (String(number).charAt(0) === '7' && vatRate != null && vatRate !== '') {
+    wanted = PENNYLANE_VAT_CODES[String(Math.round(Number(vatRate) * 1000) / 1000)] || null;
+  }
+  var key = number + '|' + (wanted || '');
+  if (cache.accounts[key]) return cache.accounts[key];
   var filter = JSON.stringify([{ field: 'number', operator: 'eq', value: String(number) }]);
-  var payload = pennylaneFetch_(token, '/ledger_accounts?filter=' + encodeURIComponent(filter) + '&limit=5');
-  var items = pennylaneItems_(payload);
-  var found = items.filter(function (a) { return a.number === String(number); })[0] || items[0];
+  var payload = pennylaneFetch_(token, '/ledger_accounts?filter=' + encodeURIComponent(filter) + '&limit=100');
+  var items = pennylaneItems_(payload).filter(function (a) { return a.number === String(number); });
+  var pool = items.filter(function (a) { return a.enabled !== false; });
+  if (!pool.length) pool = items;
+  var found = null, vatOk = false;
+  if (wanted) {
+    // Plusieurs variantes au même taux (doublons créés à la main) : la plus ancienne, c'est celle
+    // du plan comptable d'origine, que l'expert-comptable choisit lui-même à la main.
+    var matches = pool.filter(function (a) { return a.vat_rate === wanted; }).sort(function (x, y) { return x.id - y.id; });
+    if (matches.length) { found = matches[0]; vatOk = true; }
+  }
+  if (!found) found = pool[0];
   if (!found) throw new Error('Compte "' + number + '" introuvable dans le plan comptable Pennylane de cette société.');
-  cache.accounts[number] = { id: found.id, label: found.label };
-  return cache.accounts[number];
+  cache.accounts[key] = { id: found.id, label: found.label, vatRate: found.vat_rate, wantedVatRate: wanted, vatOk: wanted ? vatOk : null };
+  return cache.accounts[key];
 }
 
 function pennylaneMoney_(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
@@ -179,13 +203,14 @@ function pennylaneResolveEntries_(companyId, entries) {
     var lines = [];
     var debitTotal = 0, creditTotal = 0;
     entry.lines.forEach(function (line) {
-      var acc = pennylaneResolveAccountId_(token, line.accountNumber, cache);
+      var acc = pennylaneResolveAccountId_(token, line.accountNumber, cache, line.vatRate);
       var debit = pennylaneMoney_(line.debit || 0), credit = pennylaneMoney_(line.credit || 0);
       debitTotal = pennylaneMoney_(debitTotal + debit); creditTotal = pennylaneMoney_(creditTotal + credit);
       lines.push({
         debit: debit.toFixed(2), credit: credit.toFixed(2),
         ledger_account_id: acc.id, label: line.label || entry.label,
         _accountNumber: line.accountNumber, _accountLabel: acc.label,
+        _vatRate: acc.vatRate, _wantedVatRate: acc.wantedVatRate, _vatOk: acc.vatOk,
       });
     });
     if (Math.abs(pennylaneMoney_(debitTotal - creditTotal)) > 0.005) {
@@ -208,7 +233,7 @@ function pennylanePreview(companyId, entries) {
       label: e.label, date: e.date, journalId: e.journal_id,
       debitTotal: e._debitTotal, creditTotal: e._creditTotal,
       lines: e.ledger_entry_lines.map(function (l) {
-        return { accountNumber: l._accountNumber, accountLabel: l._accountLabel, ledgerAccountId: l.ledger_account_id, label: l.label, debit: l.debit, credit: l.credit };
+        return { accountNumber: l._accountNumber, accountLabel: l._accountLabel, ledgerAccountId: l.ledger_account_id, label: l.label, debit: l.debit, credit: l.credit, vatRate: l._vatRate, wantedVatRate: l._wantedVatRate, vatOk: l._vatOk };
       }),
     };
   });

@@ -59,6 +59,8 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .pennylane-preview td{padding:8px;border-bottom:1px solid #edeef0}
 .pennylane-preview .entry-title{padding:9px 8px;font-weight:700;background:#f2ecdd;font-size:12px}
 .pennylane-preview .num{text-align:right;font-variant-numeric:tabular-nums}
+.vat-ok{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--green-soft);color:var(--green-dark);font-size:10px;font-weight:700;white-space:nowrap}
+.vat-warn{display:inline-block;margin-left:6px;color:var(--amber);font-size:10px;font-weight:700}
 .pennylane-actions{display:flex;gap:10px}
 .pennylane-actions button{border:0;border-radius:9px;height:44px;padding:0 18px;font-weight:700;cursor:pointer}
 #pennylane-preview-btn{background:#fff;border:1px solid #d9c79a;color:#7a5a12}
