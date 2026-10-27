@@ -201,11 +201,13 @@ export const profiles = {
   // (établissementId vide) à la demande de Baptiste le 4 sept. 2026 : l'outil
   // ne pourra donc pas vérifier que le fichier déposé correspond bien à la
   // société sélectionnée pour celles-ci — à surveiller à l'usage.
+  // FARTACOS : compte de versement Uber = 580009 (écriture UBEREAT 08.2026 réelle, 6 lignes de
+  // règlement lettrées sur 580009 ; 580006 existe aussi dans ce dossier mais n'est pas utilisé).
   fartacos: otacosProfile({ id: 'fartacos', name: 'FARTACOS', label: "O'Tacos Strasbourg", establishmentId: '', accounts: {
     uberSales55: ['70114', 'VENTES UBEREATS 5,5%'], vat55: ['44571006', 'TVA collectée à 5,5%'],
     uberSales10: ['70113', 'VENTES UBEREATS 10%'], vat10: ['44571008', 'TVA collectée à 10%'],
     commission: ['6222', 'COMMISSIONS UBEREATS'], deductibleVat: ['44566', 'TVA sur autres biens et services'],
-    marketing: ['623204', 'DEPENSES MARKETING UBEREATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580006', 'UBEREAT']
+    marketing: ['623204', 'DEPENSES MARKETING UBEREATS'], mealVoucher: ['580004', 'VERSEMENT TR'], uberSettlement: ['580009', 'UBEREAT']
   }, cashAccounts: {
     salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'], salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
     salesSP10: ['70111', 'VENTES 10% SUR PLACE'], salesAE10: ['70112', 'VENTES 10% A EMPORTER'], cash: ['531', 'CAISSE']

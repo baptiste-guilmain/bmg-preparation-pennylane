@@ -105,6 +105,8 @@ setProfile('');
 // période, pas depuis le navigateur — donc valable pour tout le monde quand
 // plusieurs personnes saisissent en parallèle, voir refreshChecklist en
 // section 8 (dépend de scriptRun/PENNYLANE_AVAILABLE, définis plus bas).
+// Période par défaut : le mois écoulé (on importe toujours le mois précédent).
+{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);$('#period').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
 $('#period').addEventListener('change',refreshChecklist);
 refreshChecklist();
 

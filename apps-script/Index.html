@@ -394,7 +394,7 @@ const profiles = {
             deductibleVat: [ "44566", "TVA sur autres biens et services" ],
             marketing: [ "623204", "DEPENSES MARKETING UBEREATS" ],
             mealVoucher: [ "580004", "VERSEMENT TR" ],
-            uberSettlement: [ "580006", "UBEREAT" ]
+            uberSettlement: [ "580009", "UBEREAT" ]
         },
         cashAccounts: {
             salesSP55: [ "701051", "VENTES 5,5% SUR PLACE" ],
@@ -845,6 +845,13 @@ function setProfile(id) {
 $("#company").addEventListener("change", (e => setProfile(e.target.value)));
 
 setProfile("");
+
+{
+    const d = new Date;
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    $("#period").value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 $("#period").addEventListener("change", refreshChecklist);
 
