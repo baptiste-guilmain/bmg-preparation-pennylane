@@ -348,8 +348,11 @@ async function parseCashDoz(file){
   // nombre : on le parse explicitement plutôt que via num() (réservé aux
   // colonnes montant, toujours numériques ici).
   let ht10=null,vat10=null,ht55=null,vat55=null;
+  // Deux écritures du taux selon la version de l'export : "1000"/"550" (juillet-septembre)
+  // et "10"/"5.5" (octobre 2026) — ramenées toutes deux à des centièmes de point.
+  const rateOf=v=>{const x=parseFloat(String(v==null?'':v).replace(',','.'));return Number.isFinite(x)?Math.round(x>=100?x:x*100):0};
   rows.forEach(r=>{
-    const rate=Math.round(parseFloat(r&&r[0])||0);
+    const rate=rateOf(r&&r[0]);
     if(rate===1000){
       vat10=num(r[1]);
       ht10=typeof r[3]==='number'&&r[3]!==0?num(r[3]):round(vat10/.10);
@@ -579,7 +582,11 @@ function buildRows(uber,cash){
     const adjTtc=Math.abs(uber.marketingAdjustment),adjHt=round(adjTtc/(1+profile.expenseVat)),adjVat=round(adjTtc-adjHt),isCredit=uber.marketingAdjustment>0;
     rows.push(line(date,journal,a.marketing,ul,isCredit?null:adjHt,isCredit?adjHt:null,profile.expenseVat),line(date,journal,a.deductibleVat,ul,isCredit?null:adjVat,isCredit?adjVat:null));
   }
-  uber.payouts.sort((x,y)=>x[0]==='À venir'?1:y[0]==='À venir'?-1:x[0].split('/').reverse().join('').localeCompare(y[0].split('/').reverse().join(''))).forEach(([d,v])=>rows.push(line(date,journal,a.uberSettlement,`${ul} ${d==='À venir'?'a venir':d}`,Math.abs(v))));
+  uber.payouts.sort((x,y)=>x[0]==='À venir'?1:y[0]==='À venir'?-1:x[0].split('/').reverse().join('').localeCompare(y[0].split('/').reverse().join(''))).forEach(([d,v])=>{
+    // Un règlement négatif (ex. dépenses publicitaires déjà déduites, pas encore compensées par une vente) va au crédit.
+    const lb=`${ul} ${d==='À venir'?'a venir':d}`;
+    rows.push(v<0?line(date,journal,a.uberSettlement,lb,null,Math.abs(v)):line(date,journal,a.uberSettlement,lb,Math.abs(v)));
+  });
   // Les exports Uber peuvent inclure de petits écarts de règlement qui ne sont
   // pas ventilés par colonne. HAGTACOS a une règle validée par l'expert pour un
   // écart significatif ; sur les autres O'Tacos, seuls les écarts d'arrondi

@@ -1223,8 +1223,12 @@ async function parseCashDoz(file) {
     const rows = await parseXlsx(file, "repartition du montant");
     const num = v => typeof v === "number" ? v : 0;
     let ht10 = null, vat10 = null, ht55 = null, vat55 = null;
+    const rateOf = v => {
+        const x = parseFloat(String(v == null ? "" : v).replace(",", "."));
+        return Number.isFinite(x) ? Math.round(x >= 100 ? x : x * 100) : 0;
+    };
     rows.forEach((r => {
-        const rate = Math.round(parseFloat(r && r[0]) || 0);
+        const rate = rateOf(r && r[0]);
         if (rate === 1e3) {
             vat10 = num(r[1]);
             ht10 = typeof r[3] === "number" && r[3] !== 0 ? num(r[3]) : round(vat10 / .1);
@@ -1546,7 +1550,10 @@ function buildRows(uber, cash) {
         const adjTtc = Math.abs(uber.marketingAdjustment), adjHt = round(adjTtc / (1 + profile.expenseVat)), adjVat = round(adjTtc - adjHt), isCredit = uber.marketingAdjustment > 0;
         rows.push(line(date, journal, a.marketing, ul, isCredit ? null : adjHt, isCredit ? adjHt : null, profile.expenseVat), line(date, journal, a.deductibleVat, ul, isCredit ? null : adjVat, isCredit ? adjVat : null));
     }
-    uber.payouts.sort(((x, y) => x[0] === "\xc0 venir" ? 1 : y[0] === "\xc0 venir" ? -1 : x[0].split("/").reverse().join("").localeCompare(y[0].split("/").reverse().join("")))).forEach((([d, v]) => rows.push(line(date, journal, a.uberSettlement, `${ul} ${d === "\xc0 venir" ? "a venir" : d}`, Math.abs(v)))));
+    uber.payouts.sort(((x, y) => x[0] === "\xc0 venir" ? 1 : y[0] === "\xc0 venir" ? -1 : x[0].split("/").reverse().join("").localeCompare(y[0].split("/").reverse().join("")))).forEach((([d, v]) => {
+        const lb = `${ul} ${d === "\xc0 venir" ? "a venir" : d}`;
+        rows.push(v < 0 ? line(date, journal, a.uberSettlement, lb, null, Math.abs(v)) : line(date, journal, a.uberSettlement, lb, Math.abs(v)));
+    }));
     const uberDebit = round(rows.reduce(((sum, r) => sum + (r.debit || 0)), 0)), uberCredit = round(rows.reduce(((sum, r) => sum + (r.credit || 0)), 0)), settlementGap = round(uberCredit - uberDebit);
     const isOtacos = profile.vatBreakdown === "otacos-5.5-and-10", canReconcileGap = profile.id === "hagtacos" || isOtacos && Math.abs(settlementGap) <= 10 || Math.abs(settlementGap) <= .05;
     if (canReconcileGap && Math.abs(settlementGap) > .005) {
