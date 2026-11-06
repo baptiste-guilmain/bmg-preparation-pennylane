@@ -130,6 +130,41 @@ export const profiles = {
       cash: ['531', 'CAISSE']
     }
   },
+  // MULHOUSEGAME (Crousty Game Mulhouse) : même logiciel de caisse Zelty que STRASGAME, donc même
+  // adaptateur de caisse et même schéma de comptes. Ajouté le 6 nov. 2026. Établissement Uber
+  // BYS01549 relevé dans l'export d'octobre 2026. Dossier Pennylane vérifié par l'API le 6 nov. :
+  // aucune écriture de ventes encore passée et AUCUN des comptes ci-dessous n'y existe encore (seul
+  // 530 « Caisse » est actif, 531 est désactivé, d'où caisse = 530 comme MULIOS) : ils doivent être
+  // créés avant le premier envoi direct. Reste en statut 'pending' (voir PROFILE_STATUS) tant
+  // qu'une première écriture n'a pas été confrontée à celle de l'expert-comptable.
+  mulhousegame: {
+    id: 'mulhousegame',
+    name: 'MULHOUSEGAME',
+    label: 'Crousty Game — Mulhouse',
+    mode: 'uber-and-cash',
+    cashAdapter: 'strasgame-retraitements',
+    uberJournal: 'VT',
+    vatBreakdown: 'otacos-5.5-and-10',
+    rawVatOnly: true,
+    expenseVat: 0.20,
+    uberEstablishments: ['BYS01549'],
+    accounts: {
+      uberSales55: ['70114', 'VENTES 5,5% UBEREATS'],
+      vat55: ['44571006', 'TVA collectée à 5,5%'],
+      uberSales10: ['70113', 'VENTES 10% UBEREATS'],
+      vat10: ['44571008', 'TVA collectée à 10%'],
+      commission: ['6222', 'COMMISSIONS UBEREATS'],
+      deductibleVat: ['44566', 'TVA sur autres biens et services'],
+      marketing: ['623204', 'DEPENSES MARKETING UBEREATS'],
+      mealVoucher: ['580004', 'VERSEMENT TR'],
+      uberSettlement: ['580006', 'UBEREAT'],
+      salesSP55: ['701051', 'VENTES 5,5% SUR PLACE'],
+      salesAE55: ['701052', 'VENTES 5,5% A EMPORTER'],
+      salesSP10: ['70111', 'VENTES 10% SUR PLACE'],
+      salesAE10: ['70112', 'VENTES 10% A EMPORTER'],
+      cash: ['530', 'CAISSE']
+    }
+  },
   hagtacos: otacosProfile({
     id: 'hagtacos',
     name: 'HAGTACOS',

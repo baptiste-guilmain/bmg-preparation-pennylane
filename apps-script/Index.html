@@ -162,6 +162,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
           <option value="" selected>— Choisir une société —</option>
           <optgroup label="Crousty Game">
             <option value="strasgame">✓ STRASGAME — Crousty Game Strasbourg</option>
+            <option value="mulhousegame">MULHOUSEGAME — Crousty Game Mulhouse</option>
           </optgroup>
           <optgroup label="Paradis du Fruit">
             <option value="pdfk">✓ PDFK — Paradis du Fruit Strasbourg Kléber</option>
@@ -330,6 +331,34 @@ const profiles = {
             salesSP10: [ "70111", "VENTES 10% SUR PLACE" ],
             salesAE10: [ "70112", "VENTES 10% A EMPORTER" ],
             cash: [ "531", "CAISSE" ]
+        }
+    },
+    mulhousegame: {
+        id: "mulhousegame",
+        name: "MULHOUSEGAME",
+        label: "Crousty Game \u2014 Mulhouse",
+        mode: "uber-and-cash",
+        cashAdapter: "strasgame-retraitements",
+        uberJournal: "VT",
+        vatBreakdown: "otacos-5.5-and-10",
+        rawVatOnly: true,
+        expenseVat: .2,
+        uberEstablishments: [ "BYS01549" ],
+        accounts: {
+            uberSales55: [ "70114", "VENTES 5,5% UBEREATS" ],
+            vat55: [ "44571006", "TVA collect\xe9e \xe0 5,5%" ],
+            uberSales10: [ "70113", "VENTES 10% UBEREATS" ],
+            vat10: [ "44571008", "TVA collect\xe9e \xe0 10%" ],
+            commission: [ "6222", "COMMISSIONS UBEREATS" ],
+            deductibleVat: [ "44566", "TVA sur autres biens et services" ],
+            marketing: [ "623204", "DEPENSES MARKETING UBEREATS" ],
+            mealVoucher: [ "580004", "VERSEMENT TR" ],
+            uberSettlement: [ "580006", "UBEREAT" ],
+            salesSP55: [ "701051", "VENTES 5,5% SUR PLACE" ],
+            salesAE55: [ "701052", "VENTES 5,5% A EMPORTER" ],
+            salesSP10: [ "70111", "VENTES 10% SUR PLACE" ],
+            salesAE10: [ "70112", "VENTES 10% A EMPORTER" ],
+            cash: [ "530", "CAISSE" ]
         }
     },
     hagtacos: otacosProfile({
@@ -1345,7 +1374,7 @@ async function parseCashAldn(file) {
 
 async function parseCashStrasgame(file) {
     const ext = file.name.split(".").pop().toLowerCase();
-    if (ext !== "xlsx") throw new Error("Le rapport de caisse STRASGAME doit \xeatre un fichier Excel (.xlsx).");
+    if (ext !== "xlsx") throw new Error(`Le rapport de caisse ${profile.name} doit \xeatre un fichier Excel (.xlsx).`);
     const sheets = await parseXlsxAllSheets(file);
     const num = v => typeof v === "number" ? v : 0;
     const parseRate = v => {
@@ -1423,7 +1452,7 @@ async function parseCashStrasgame(file) {
             break;
         }
     }
-    if (rows == null) throw new Error("Rapport de caisse STRASGAME non reconnu (ni \xab Origine de la commande \xbb, ni section \xab Ecritures \xbb).");
+    if (rows == null) throw new Error(`Rapport de caisse ${profile.name} non reconnu (ni \xab Origine de la commande \xbb, ni section \xab Ecritures \xbb).`);
     const values = {};
     let mode = null;
     for (let i = startIdx + 1; i < rows.length; i++) {

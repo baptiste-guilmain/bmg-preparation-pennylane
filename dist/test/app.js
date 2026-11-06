@@ -439,7 +439,7 @@ async function parseCashAldn(file){
 
 async function parseCashStrasgame(file){
   const ext=file.name.split('.').pop().toLowerCase();
-  if(ext!=='xlsx') throw new Error('Le rapport de caisse STRASGAME doit être un fichier Excel (.xlsx).');
+  if(ext!=='xlsx') throw new Error(`Le rapport de caisse ${profile.name} doit être un fichier Excel (.xlsx).`);
   const sheets=await parseXlsxAllSheets(file);
   const num=v=>typeof v==='number'?v:0;
   const parseRate=v=>{const s=String(v||'').replace(',','.').replace('%','').trim();const f=parseFloat(s);return Number.isFinite(f)?Math.round(f*10)/10:null};
@@ -500,7 +500,7 @@ async function parseCashStrasgame(file){
     const idx=sheet.rows.findIndex(r=>normalize(r&&r[0])==='ecritures');
     if(idx>=0){rows=sheet.rows;startIdx=idx;break;}
   }
-  if(rows==null) throw new Error('Rapport de caisse STRASGAME non reconnu (ni « Origine de la commande », ni section « Ecritures »).');
+  if(rows==null) throw new Error(`Rapport de caisse ${profile.name} non reconnu (ni « Origine de la commande », ni section « Ecritures »).`);
   const values={};let mode=null;
   for(let i=startIdx+1;i<rows.length;i++){
     const row=rows[i];if(!row)continue;

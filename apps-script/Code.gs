@@ -30,7 +30,7 @@ var PENNYLANE_BASE_URL = 'https://app.pennylane.com/api/external/v2';
 // Liste blanche : évite qu'un appel forgé sonde des propriétés arbitraires.
 // Doit rester alignée avec les ids de public/profiles.js.
 var PENNYLANE_KNOWN_COMPANIES = {
-  pdfk: 1, strasgame: 1,
+  pdfk: 1, strasgame: 1, mulhousegame: 1,
   hagtacos: 1, colmios: 1, fartacos: 1, epios: 1, geipios: 1, sarios: 1, hautios: 1,
   mulios: 1, arios: 1, vinios: 1, aldn: 1,
   colmardoz: 1, strasdoz: 1,
