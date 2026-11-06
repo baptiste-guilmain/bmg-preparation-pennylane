@@ -171,7 +171,7 @@ function pennylaneMoney_(n) { return Math.round((Number(n) + Number.EPSILON) * 1
 // 10 sept. 2026 pour éviter une double saisie de CA sur un même mois — bloquant,
 // pas un simple avertissement (l'utilisateur doit supprimer l'écriture existante
 // dans Pennylane lui-même s'il veut vraiment reposter).
-function pennylaneCheckDuplicates_(token, entries) {
+function pennylaneFindExisting_(token, entries) {
   var dates = [];
   entries.forEach(function (e) { if (dates.indexOf(e.date) < 0) dates.push(e.date); });
   var conflicts = [];
@@ -183,6 +183,11 @@ function pennylaneCheckDuplicates_(token, entries) {
       if (existing) conflicts.push({ label: entry.label, date: entry.date, existingId: existing.id });
     });
   });
+  return conflicts;
+}
+
+function pennylaneCheckDuplicates_(token, entries) {
+  var conflicts = pennylaneFindExisting_(token, entries);
   if (conflicts.length) {
     throw new Error(
       'Écriture déjà présente dans Pennylane pour cette période : ' +
@@ -227,8 +232,18 @@ function pennylaneResolveEntries_(companyId, entries) {
 /** Appelée depuis le navigateur (google.script.run) : résout comptes/journal
  * réels et vérifie l'absence de doublon, sans jamais écrire dans Pennylane. */
 function pennylanePreview(companyId, entries) {
-  var result = pennylaneResolveEntries_(companyId, entries);
-  return result.resolved.map(function (e) {
+  // Une écriture déjà dans Pennylane (ex. la caisse faite avant l'Uber) n'empêche plus l'aperçu des
+  // autres : elle est signalée (alreadyInPennylane) et ne sera pas renvoyée. Le blocage anti-doublon
+  // reste entier à l'envoi (pennylaneResolveEntries_), et si TOUT existe déjà on bloque comme avant.
+  var token = pennylaneGetToken_(companyId);
+  var existing = pennylaneFindExisting_(token, entries);
+  var existingLabels = existing.map(function (c) { return c.label; });
+  var todo = entries.filter(function (e) { return existingLabels.indexOf(e.label) < 0; });
+  if (!todo.length) {
+    pennylaneCheckDuplicates_(token, entries);
+  }
+  var result = pennylaneResolveEntries_(companyId, todo);
+  var out = result.resolved.map(function (e) {
     return {
       label: e.label, date: e.date, journalId: e.journal_id,
       debitTotal: e._debitTotal, creditTotal: e._creditTotal,
@@ -237,6 +252,10 @@ function pennylanePreview(companyId, entries) {
       }),
     };
   });
+  existing.forEach(function (c) {
+    out.push({ label: c.label, date: c.date, alreadyInPennylane: true, debitTotal: 0, creditTotal: 0, lines: [] });
+  });
+  return out;
 }
 
 /** Appelée depuis le navigateur (google.script.run) : écrit RÉELLEMENT dans

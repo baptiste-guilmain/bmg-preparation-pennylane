@@ -1857,6 +1857,7 @@ function renderPennylanePreview(preview) {
     const box = $("#pennylane-preview");
     box.hidden = false;
     box.innerHTML = preview.map((e => {
+        if (e.alreadyInPennylane) return `<div class="entry-title">${esc(e.label)} \xb7 d\xe9j\xe0 dans Pennylane, ne sera pas renvoy\xe9e</div>`;
         const rows = e.lines.map((l => `<tr><td>${esc(l.accountNumber)}</td><td>${esc(l.accountLabel || "")}${vatTag(l)}</td><td>${esc(l.label)}</td><td class="num">${l.debit !== "0.00" ? money.format(+l.debit) : "\u2014"}</td><td class="num">${l.credit !== "0.00" ? money.format(+l.credit) : "\u2014"}</td></tr>`)).join("");
         return `<div class="entry-title">${esc(e.label)} \xb7 d\xe9bit ${money.format(e.debitTotal)} = cr\xe9dit ${money.format(e.creditTotal)}</div><table><thead><tr><th>Compte</th><th>Libell\xe9 compte</th><th>Libell\xe9 ligne</th><th class="num">D\xe9bit</th><th class="num">Cr\xe9dit</th></tr></thead><tbody>${rows}</tbody></table>`;
     })).join("");
@@ -1871,15 +1872,17 @@ if (PENNYLANE_AVAILABLE) $("#pennylane-preview-btn").addEventListener("click", (
     try {
         const entries = groupRowsForPennylane();
         const preview = await scriptRun("pennylanePreview", profile.id, entries);
+        const existing = preview.filter((p => p.alreadyInPennylane)).map((p => p.label));
         pennylanePayload = {
             companyId: profile.id,
-            entries: entries
+            entries: entries.filter((e => !existing.includes(e.label))),
+            existing: existing
         };
         renderPennylanePreview(preview);
         $("#pennylane-progress").hidden = true;
         $("#pennylane-send-btn").textContent = "Confirmer et envoyer \xe0 Pennylane";
         $("#pennylane-send-btn").disabled = false;
-        $("#pennylane-status").textContent = "Aper\xe7u g\xe9n\xe9r\xe9 \u2014 v\xe9rifiez les comptes et montants avant de confirmer.";
+        $("#pennylane-status").textContent = existing.length ? `Aper\xe7u g\xe9n\xe9r\xe9 \u2014 ${existing.join(", ")} d\xe9j\xe0 dans Pennylane (non renvoy\xe9e). V\xe9rifiez ce qui sera envoy\xe9 avant de confirmer.` : "Aper\xe7u g\xe9n\xe9r\xe9 \u2014 v\xe9rifiez les comptes et montants avant de confirmer.";
     } catch (e) {
         resetPennylanePanel();
         $("#pennylane-status").textContent = `Erreur : ${e.message || e}`;
@@ -1932,7 +1935,7 @@ window.addEventListener("beforeunload", (e => {
 
 if (PENNYLANE_AVAILABLE) $("#pennylane-send-btn").addEventListener("click", (async () => {
     if (!pennylanePayload || sendingNow) return;
-    const {companyId: companyId, entries: entries} = pennylanePayload, done = pennylanePayload.done || (pennylanePayload.done = new Set);
+    const {companyId: companyId, entries: entries} = pennylanePayload, existing = pennylanePayload.existing || [], done = pennylanePayload.done || (pennylanePayload.done = new Set);
     const todo = entries.filter((e => !done.has(e.label)));
     if (!todo.length) return;
     if (!confirm(`Confirmer l'envoi r\xe9el de ${todo.length} \xe9criture(s) dans Pennylane pour ${profile.name} ? Cette action cr\xe9e l'\xe9criture directement et n'est pas r\xe9versible depuis cet outil.`)) return;
@@ -2019,7 +2022,9 @@ if (PENNYLANE_AVAILABLE) $("#pennylane-send-btn").addEventListener("click", (asy
     $("#process").disabled = processWas;
     btn.textContent = prevLabel;
     if (steps.every((s => s.state === "done"))) {
-        plDraw("success", `${name} \xb7 ${periodLabel} : termin\xe9`, steps, `Termin\xe9 : les ${entries.length} \xe9critures de ${name} (${periodLabel}) sont cr\xe9\xe9es et v\xe9rifi\xe9es dans Pennylane. Cliquez sur \xab Nouvel import \xbb pour traiter une autre soci\xe9t\xe9.`);
+        const many = entries.length > 1, what = many ? "les " + entries.length + " \xe9critures" : "l\u2019\xe9criture " + entries[0].label;
+        const already = existing.length ? " " + existing.join(", ") + " \xe9tait d\xe9j\xe0 dans Pennylane (non renvoy\xe9e)." : "";
+        plDraw("success", name + " \xb7 " + periodLabel + " : termin\xe9", steps, "Termin\xe9 : " + what + " de " + name + " (" + periodLabel + ") " + (many ? "sont cr\xe9\xe9es et v\xe9rifi\xe9es" : "est cr\xe9\xe9e et v\xe9rifi\xe9e") + " dans Pennylane." + already + " Cliquez sur \xab Nouvel import \xbb pour traiter une autre soci\xe9t\xe9.");
         $("#pennylane-status").textContent = "Envoi termin\xe9 et v\xe9rifi\xe9.";
         btn.textContent = "Confirmer et envoyer \xe0 Pennylane";
         $("#pennylane-preview-btn").disabled = true;

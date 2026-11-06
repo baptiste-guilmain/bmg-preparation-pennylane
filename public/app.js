@@ -806,6 +806,7 @@ function vatTag(l){
 function renderPennylanePreview(preview){
   const box=$('#pennylane-preview');box.hidden=false;
   box.innerHTML=preview.map(e=>{
+    if(e.alreadyInPennylane)return `<div class="entry-title">${esc(e.label)} · déjà dans Pennylane, ne sera pas renvoyée</div>`;
     const rows=e.lines.map(l=>`<tr><td>${esc(l.accountNumber)}</td><td>${esc(l.accountLabel||'')}${vatTag(l)}</td><td>${esc(l.label)}</td><td class="num">${l.debit!=='0.00'?money.format(+l.debit):'—'}</td><td class="num">${l.credit!=='0.00'?money.format(+l.credit):'—'}</td></tr>`).join('');
     return `<div class="entry-title">${esc(e.label)} · débit ${money.format(e.debitTotal)} = crédit ${money.format(e.creditTotal)}</div><table><thead><tr><th>Compte</th><th>Libellé compte</th><th>Libellé ligne</th><th class="num">Débit</th><th class="num">Crédit</th></tr></thead><tbody>${rows}</tbody></table>`;
   }).join('');
@@ -816,12 +817,13 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-preview-btn').addEventListener('click',asyn
   try{
     const entries=groupRowsForPennylane();
     const preview=await scriptRun('pennylanePreview',profile.id,entries);
-    pennylanePayload={companyId:profile.id,entries};
+    const existing=preview.filter(p=>p.alreadyInPennylane).map(p=>p.label);
+    pennylanePayload={companyId:profile.id,entries:entries.filter(e=>!existing.includes(e.label)),existing};
     renderPennylanePreview(preview);
     $('#pennylane-progress').hidden=true;
     $('#pennylane-send-btn').textContent='Confirmer et envoyer à Pennylane';
     $('#pennylane-send-btn').disabled=false;
-    $('#pennylane-status').textContent='Aperçu généré — vérifiez les comptes et montants avant de confirmer.';
+    $('#pennylane-status').textContent=existing.length?`Aperçu généré — ${existing.join(', ')} déjà dans Pennylane (non renvoyée). Vérifiez ce qui sera envoyé avant de confirmer.`:'Aperçu généré — vérifiez les comptes et montants avant de confirmer.';
   }catch(e){
     resetPennylanePanel();
     $('#pennylane-status').textContent=`Erreur : ${e.message||e}`;
@@ -855,7 +857,7 @@ if(PENNYLANE_AVAILABLE)$('#pl-new-btn').addEventListener('click',()=>{
 window.addEventListener('beforeunload',e=>{if(sendingNow){e.preventDefault();e.returnValue=''}});
 if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()=>{
   if(!pennylanePayload||sendingNow)return;
-  const {companyId,entries}=pennylanePayload,done=pennylanePayload.done||(pennylanePayload.done=new Set());
+  const {companyId,entries}=pennylanePayload,existing=pennylanePayload.existing||[],done=pennylanePayload.done||(pennylanePayload.done=new Set());
   const todo=entries.filter(e=>!done.has(e.label));if(!todo.length)return;
   if(!confirm(`Confirmer l'envoi réel de ${todo.length} écriture(s) dans Pennylane pour ${profile.name} ? Cette action crée l'écriture directement et n'est pas réversible depuis cet outil.`))return;
   const btn=$('#pennylane-send-btn'),prevLabel=btn.textContent,processWas=$('#process').disabled,name=profile.name,periodLabel=periodInfo().label;
@@ -889,7 +891,11 @@ if(PENNYLANE_AVAILABLE)$('#pennylane-send-btn').addEventListener('click',async()
   }catch(err){if(!failed){steps[last].state='error';steps[last].detail=errText(err)}}
   sendingNow=false;setFormLocked(false);$('#process').disabled=processWas;btn.textContent=prevLabel;
   if(steps.every(s=>s.state==='done')){
-    plDraw('success',`${name} · ${periodLabel} : terminé`,steps,`Terminé : les ${entries.length} écritures de ${name} (${periodLabel}) sont créées et vérifiées dans Pennylane. Cliquez sur « Nouvel import » pour traiter une autre société.`);
+    // Texte assemblé par simple concaténation, sans gabarit imbriqué ni apostrophe droite : le filtre
+    // de commentaires de Google (HtmlService) s'y perd et tronque le script (page cassée, 6 nov. 2026).
+    const many=entries.length>1,what=many?'les '+entries.length+' écritures':'l’écriture '+entries[0].label;
+    const already=existing.length?' '+existing.join(', ')+' était déjà dans Pennylane (non renvoyée).':'';
+    plDraw('success',name+' · '+periodLabel+' : terminé',steps,'Terminé : '+what+' de '+name+' ('+periodLabel+') '+(many?'sont créées et vérifiées':'est créée et vérifiée')+' dans Pennylane.'+already+' Cliquez sur « Nouvel import » pour traiter une autre société.');
     $('#pennylane-status').textContent='Envoi terminé et vérifié.';
     btn.textContent='Confirmer et envoyer à Pennylane';
     $('#pennylane-preview-btn').disabled=true;pennylanePayload=null;btn.disabled=true;
